@@ -1,0 +1,277 @@
+*** a/run.py
+--- b/run.py
+***************
+*** 1,5 ****
+--- 1,6 ----
+  import sys
+  import time
++ import itertools
+  import os
+  import json
+  import subprocess
+***************
+*** 213,220 ****
+          self._rsi_period = 6  # RSI period length
+          self._rsi_interval = 15 * 60  # 15 minutes in seconds
+          self._rsi_values: dict[str, float] = {}  # Current RSI values
+          self._rsi_last_calc: dict[str, float] = {}  # Last calculation timestamp
+          self._rsi_gains: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
+          self._rsi_losses: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
+          self._rsi_timer = QtCore.QTimer(self)
+          self._rsi_timer.setInterval(60000)  # Check every minute
+          self._rsi_timer.timeout.connect(self._update_rsi_values)
+          self._rsi_timer.start()
+--- 214,228 ----
+          self._rsi_period = 6  # RSI period length
+          self._rsi_interval = 15 * 60  # 15 minutes in seconds
+          self._rsi_values: dict[str, float] = {}  # Current RSI values
+          self._rsi_last_calc: dict[str, float] = {}  # Last calculation timestamp
+          self._rsi_gains: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
+          self._rsi_losses: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
++         # --- NEW: use true 15m bar closes for RSI(15m, 6) ---
++         # We accumulate a "close" once every self._rsi_interval seconds per pair
++         # and compute RSI from these bar closes to match the exchange setting.
++         self._rsi_closes: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period + 1))
++         self._rsi_last_bar_close: dict[str, float] = {}
++         self._rsi_last_bar_ts: dict[str, float] = {}
+          self._rsi_timer = QtCore.QTimer(self)
+          self._rsi_timer.setInterval(60000)  # Check every minute
+          self._rsi_timer.timeout.connect(self._update_rsi_values)
+          self._rsi_timer.start()
+***************
+*** 480,519 ****
+          self.last_ws_price[pair.lower()] = float(price)
+          self._ingest_series(pair, price)
+          self._maybe_alert(pair, price, pct)
+          
+          # Apply RSI styling if available
+          rsi = getattr(self, '_rsi_values', {}).get(pair.lower())
+          if rsi is not None:
+              self._apply_rsi_style(lbl, rsi)
+              
+      def _apply_rsi_style(self, label, rsi):
+          """Apply styling based on RSI value
+          
+          Strong levels: 68, 75, 83, 94
+          Weak levels: 25, 20, 15, 10
+          
+          Level 1: Bold
+          Level 2: Red
+          Level 3: Red + Bold
+          Level 4: Flashing Red + Bold
+          """
+-         # Reset styles first
+-         label.setStyleSheet("")
+-         
+-         # Stop any existing animation
+-         for animation in label.findChildren(QtCore.QPropertyAnimation):
+-             animation.stop()
+-             animation.deleteLater()
++         # Reset styles first (make reset explicit to avoid residual bold/opacity)
++         label.setStyleSheet("color: #111827; font-weight: normal;")
++         # Stop any existing animation and remove any opacity effect
++         for animation in label.findChildren(QtCore.QPropertyAnimation):
++             animation.stop()
++             animation.deleteLater()
++         if label.graphicsEffect() is not None:
++             label.setGraphicsEffect(None)
+          
+          # Apply styles based on RSI levels
+          if rsi >= 68:  # Strong levels
+              if rsi >= 94:  # Level 4
+                  self._apply_flashing_style(label, "red", True)
+              elif rsi >= 83:  # Level 3
+-                 label.setStyleSheet("color: red; font-weight: bold;")
++                 label.setStyleSheet("color: red; font-weight: bold;")
+              elif rsi >= 75:  # Level 2
+-                 label.setStyleSheet("color: red;")
++                 label.setStyleSheet("color: red; font-weight: normal;")
+              else:  # Level 1 (68-75)
+-                 label.setStyleSheet("font-weight: bold;")
++                 label.setStyleSheet("color: #111827; font-weight: bold;")
+          elif rsi <= 25:  # Weak levels
+              if rsi <= 10:  # Level 4
+                  self._apply_flashing_style(label, "red", True)
+              elif rsi <= 15:  # Level 3
+-                 label.setStyleSheet("color: red; font-weight: bold;")
++                 label.setStyleSheet("color: red; font-weight: bold;")
+              elif rsi <= 20:  # Level 2
+-                 label.setStyleSheet("color: red;")
++                 label.setStyleSheet("color: red; font-weight: normal;")
+              else:  # Level 1 (20-25)
+-                 label.setStyleSheet("font-weight: bold;")
++                 label.setStyleSheet("color: #111827; font-weight: bold;")
+                 
+      def _apply_flashing_style(self, label, color, bold=False):
+          """Apply flashing animation to label"""
+          # Set initial style
+          bold_style = "font-weight: bold;" if bold else ""
+***************
+*** 636,677 ****
+              p = pair.lower()
+              prev_price = self._price_series[p][-1] if self._price_series[p] else None
+              self._price_series[p].append(float(price))
+              vol = float(self.ws.get_quote_volume(p)) if self.ws else 0.0
+              self._vol_series[p].append(vol)
+              now = time.time()
+              self._price_ts[p].append((now, float(price)))
+              
+-             # Update RSI data
+-             if prev_price is not None:
+-                 change = price - prev_price
+-                 if change > 0:
+-                     self._rsi_gains[p].append(change)
+-                     self._rsi_losses[p].append(0)
+-                 else:
+-                     self._rsi_gains[p].append(0)
+-                     self._rsi_losses[p].append(abs(change))
+-                 
+-                 # Calculate RSI if enough time has passed since last calculation
+-                 last_calc = self._rsi_last_calc.get(p, 0)
+-                 if now - last_calc >= 60:  # Recalculate at most once per minute
+-                     self._calculate_rsi(p)
+-                     self._rsi_last_calc[p] = now
++             # --- NEW: build true 15m bars for RSI(15m, 6) ---
++             # Always keep latest price as the "candidate close" for the current bar
++             self._rsi_last_bar_close[p] = float(price)
++             last_bar_ts = self._rsi_last_bar_ts.get(p, 0.0)
++             if now - last_bar_ts >= float(self._rsi_interval):
++                 # time to close the current bar and start a new one
++                 self._rsi_last_bar_ts[p] = now
++                 close = self._rsi_last_bar_close.get(p)
++                 if close is not None:
++                     self._rsi_closes[p].append(close)
++                     if len(self._rsi_closes[p]) >= self._rsi_period + 1:
++                         self._calculate_rsi_from_closes(p)
+          except Exception:
+              pass
+              
+      def _calculate_rsi(self, pair: str):
+          """Calculate RSI-6 for the given pair"""
+          try:
+              p = pair.lower()
+              if len(self._rsi_gains[p]) < self._rsi_period or len(self._rsi_losses[p]) < self._rsi_period:
+                  return
+                  
+              avg_gain = sum(self._rsi_gains[p]) / self._rsi_period
+              avg_loss = sum(self._rsi_losses[p]) / self._rsi_period
+              
+              if avg_loss == 0:
+                  rsi = 100
+              else:
+                  rs = avg_gain / avg_loss
+                  rsi = 100 - (100 / (1 + rs))
+                  
+              self._rsi_values[p] = rsi
+              
+              # Update label style based on RSI
+              idx = self.pair_index.get(p)
+              if idx is not None and idx < len(self.labels):
+                  self._apply_rsi_style(self.labels[idx], rsi)
+          except Exception:
+              pass
+              
+      def _update_rsi_values(self):
+          """Update RSI values for all pairs"""
+          for pair in list(self._price_series.keys()):
+              self._calculate_rsi(pair)
+--- 645,726 ----
+              p = pair.lower()
+              prev_price = self._price_series[p][-1] if self._price_series[p] else None
+              self._price_series[p].append(float(price))
+              vol = float(self.ws.get_quote_volume(p)) if self.ws else 0.0
+              self._vol_series[p].append(vol)
+              now = time.time()
+              self._price_ts[p].append((now, float(price)))
+              
++             # (keep the old tick-based gain/loss buffers for possible future use,
++             #  but do not use them to compute the displayed RSI anymore)
++             if prev_price is not None:
++                 change = float(price) - float(prev_price)
++                 if change > 0:
++                     self._rsi_gains[p].append(change)
++                     self._rsi_losses[p].append(0.0)
++                 else:
++                     self._rsi_gains[p].append(0.0)
++                     self._rsi_losses[p].append(abs(change))
++ 
++             # --- NEW: build true 15m bars for RSI(15m, 6) ---
++             # Always keep latest price as the "candidate close" for the current bar
++             self._rsi_last_bar_close[p] = float(price)
++             last_bar_ts = self._rsi_last_bar_ts.get(p, 0.0)
++             if now - last_bar_ts >= float(self._rsi_interval):
++                 # time to close the current bar and start a new one
++                 self._rsi_last_bar_ts[p] = now
++                 close = self._rsi_last_bar_close.get(p)
++                 if close is not None:
++                     self._rsi_closes[p].append(close)
++                     if len(self._rsi_closes[p]) >= self._rsi_period + 1:
++                         self._calculate_rsi_from_closes(p)
+          except Exception:
+              pass
+              
+      def _calculate_rsi(self, pair: str):
+          """Calculate RSI-6 for the given pair"""
+          try:
+              p = pair.lower()
+              if len(self._rsi_gains[p]) < self._rsi_period or len(self._rsi_losses[p]) < self._rsi_period:
+                  return
+                  
+              avg_gain = sum(self._rsi_gains[p]) / self._rsi_period
+              avg_loss = sum(self._rsi_losses[p]) / self._rsi_period
+              
+              if avg_loss == 0:
+                  rsi = 100
+              else:
+                  rs = avg_gain / avg_loss
+                  rsi = 100 - (100 / (1 + rs))
+                  
+              self._rsi_values[p] = rsi
+              
+              # Update label style based on RSI
+              idx = self.pair_index.get(p)
+              if idx is not None and idx < len(self.labels):
+                  self._apply_rsi_style(self.labels[idx], rsi)
+          except Exception:
+              pass
++ 
++     # --- NEW: RSI from 15m bar closes to match exchange RSI(15m, 6) ---
++     def _calculate_rsi_from_closes(self, pair: str):
++         """Calculate RSI(self._rsi_period) from last (period+1) 15m closes."""
++         try:
++             p = pair.lower()
++             closes = list(self._rsi_closes[p])
++             if len(closes) < self._rsi_period + 1:
++                 return
++             gains, losses = [], []
++             for i in range(1, len(closes)):
++                 ch = closes[i] - closes[i - 1]
++                 gains.append(max(ch, 0.0))
++                 losses.append(max(-ch, 0.0))
++             # Only last N changes
++             gains = gains[-self._rsi_period:]
++             losses = losses[-self._rsi_period:]
++             if len(gains) < self._rsi_period or len(losses) < self._rsi_period:
++                 return
++             avg_gain = sum(gains) / float(self._rsi_period)
++             avg_loss = sum(losses) / float(self._rsi_period)
++             rsi = 100.0 if avg_loss == 0 else (100.0 - 100.0 / (1.0 + (avg_gain / avg_loss)))
++             self._rsi_values[p] = rsi
++             idx = self.pair_index.get(p)
++             if idx is not None and idx < len(self.labels):
++                 self._apply_rsi_style(self.labels[idx], rsi)
++         except Exception:
++             pass
+              
+      def _update_rsi_values(self):
+          """Update RSI values for all pairs"""
+-         for pair in list(self._price_series.keys()):
+-             self._calculate_rsi(pair)
++         # Keep periodic refresh, prefer bar-close based RSI if closes available.
++         for pair in list(self._price_series.keys()):
++             p = pair.lower()
++             if len(self._rsi_closes[p]) >= self._rsi_period + 1:
++                 self._calculate_rsi_from_closes(p)
++             else:
++                 # Fallback to tick-based RSI until enough 15m bars are collected.
++                 self._calculate_rsi(p)
