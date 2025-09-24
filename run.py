@@ -1,6 +1,7 @@
 import sys
 import time
 import os
+# NOTE: inserted comment after line 3 for verification
 import json
 import subprocess
 import platform
@@ -245,6 +246,10 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         self._rsi_last_calc: dict[str, float] = {}  # Last calculation timestamp
         self._rsi_gains: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
         self._rsi_losses: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
+        # --- NEW: use true 15m bar closes for RSI(15m, 6) ---
+        self._rsi_closes: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period + 1))
+        self._rsi_last_bar_close: dict[str, float] = {}
+        self._rsi_last_bar_ts: dict[str, float] = {}
         self._rsi_timer = QtCore.QTimer(self)
         self._rsi_timer.setInterval(60000)  # Check every minute
         self._rsi_timer.timeout.connect(self._update_rsi_values)
@@ -465,7 +470,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             c = by_id.get(cid)
             if not c:
                 lbl.setText("…")
-                lbl.setToolTip("Double‑click to set coin (e.g., btcusdt/btc)")
+                lbl.setToolTip("Double-click to set coin (e.g., btcusdt/btc)")
                 continue
             sym = (c.get("symbol") or "?").upper()
             price = c.get("price", 0.0) or c.get("current_price", 0.0) or 0.0
@@ -511,13 +516,14 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         Level 3: Red + Bold
         Level 4: Flashing Red + Bold
         """
-        # Reset styles first
-        label.setStyleSheet("")
-        
-        # Stop any existing animation
+        # Reset styles first (explicit reset to avoid residual bold/opacity)
+        label.setStyleSheet("color: #111827; font-weight: normal;")
+        # Stop any existing animation and remove any opacity effect
         for animation in label.findChildren(QtCore.QPropertyAnimation):
             animation.stop()
             animation.deleteLater()
+        if label.graphicsEffect() is not None:
+            label.setGraphicsEffect(None)
         
         # Apply styles based on RSI levels
         if rsi >= 68:  # Strong levels
@@ -526,18 +532,18 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             elif rsi >= 83:  # Level 3
                 label.setStyleSheet("color: red; font-weight: bold;")
             elif rsi >= 75:  # Level 2
-                label.setStyleSheet("color: red;")
+                label.setStyleSheet("color: red; font-weight: normal;")
             else:  # Level 1 (68-75)
-                label.setStyleSheet("font-weight: bold;")
+                label.setStyleSheet("color: #111827; font-weight: bold;")
         elif rsi <= 25:  # Weak levels
             if rsi <= 10:  # Level 4
                 self._apply_flashing_style(label, "red", True)
             elif rsi <= 15:  # Level 3
                 label.setStyleSheet("color: red; font-weight: bold;")
             elif rsi <= 20:  # Level 2
-                label.setStyleSheet("color: red;")
+                label.setStyleSheet("color: red; font-weight: normal;")
             else:  # Level 1 (20-25)
-                label.setStyleSheet("font-weight: bold;")
+                label.setStyleSheet("color: #111827; font-weight: bold;")
                 
     def _apply_flashing_style(self, label, color, bold=False):
         """Apply flashing animation to label"""
@@ -677,26 +683,33 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             now = time.time()
             self._price_ts[p].append((now, float(price)))
             
-            # Update RSI data
+            # Keep legacy tick-based buffers (unused for display RSI, but kept for potential future logic)
             if prev_price is not None:
-                change = price - prev_price
+                change = float(price) - float(prev_price)
                 if change > 0:
                     self._rsi_gains[p].append(change)
-                    self._rsi_losses[p].append(0)
+                    self._rsi_losses[p].append(0.0)
                 else:
-                    self._rsi_gains[p].append(0)
+                    self._rsi_gains[p].append(0.0)
                     self._rsi_losses[p].append(abs(change))
-                
-                # Calculate RSI if enough time has passed since last calculation
-                last_calc = self._rsi_last_calc.get(p, 0)
-                if now - last_calc >= 60:  # Recalculate at most once per minute
-                    self._calculate_rsi(p)
-                    self._rsi_last_calc[p] = now
+            
+            # --- Build true 15m bars for RSI(15m, 6) ---
+            # Always keep latest price as the "candidate close" for the current bar
+            self._rsi_last_bar_close[p] = float(price)
+            last_bar_ts = self._rsi_last_bar_ts.get(p, 0.0)
+            if now - last_bar_ts >= float(self._rsi_interval):
+                # time to close the current bar and start a new one
+                self._rsi_last_bar_ts[p] = now
+                close = self._rsi_last_bar_close.get(p)
+                if close is not None:
+                    self._rsi_closes[p].append(close)
+                    if len(self._rsi_closes[p]) >= self._rsi_period + 1:
+                        self._calculate_rsi_from_closes(p)
         except Exception:
             pass
             
     def _calculate_rsi(self, pair: str):
-        """Calculate RSI-6 for the given pair"""
+        """Calculate RSI-6 from tick-based buffers (fallback)."""
         try:
             p = pair.lower()
             if len(self._rsi_gains[p]) < self._rsi_period or len(self._rsi_losses[p]) < self._rsi_period:
@@ -719,11 +732,43 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                 self._apply_rsi_style(self.labels[idx], rsi)
         except Exception:
             pass
+
+    # --- NEW: RSI from 15m bar closes to match exchange RSI(15m, 6) ---
+    def _calculate_rsi_from_closes(self, pair: str):
+        """Calculate RSI(self._rsi_period) from last (period+1) 15m closes."""
+        try:
+            p = pair.lower()
+            closes = list(self._rsi_closes[p])
+            if len(closes) < self._rsi_period + 1:
+                return
+            gains, losses = [], []
+            for i in range(1, len(closes)):
+                ch = closes[i] - closes[i - 1]
+                gains.append(max(ch, 0.0))
+                losses.append(max(-ch, 0.0))
+            gains = gains[-self._rsi_period:]
+            losses = losses[-self._rsi_period:]
+            if len(gains) < self._rsi_period or len(losses) < self._rsi_period:
+                return
+            avg_gain = sum(gains) / float(self._rsi_period)
+            avg_loss = sum(losses) / float(self._rsi_period)
+            rsi = 100.0 if avg_loss == 0 else (100.0 - 100.0 / (1.0 + (avg_gain / avg_loss)))
+            self._rsi_values[p] = rsi
+            idx = self.pair_index.get(p)
+            if idx is not None and idx < len(self.labels):
+                self._apply_rsi_style(self.labels[idx], rsi)
+        except Exception:
+            pass
             
     def _update_rsi_values(self):
         """Update RSI values for all pairs"""
+        # Prefer bar-close based RSI if enough closes are available; otherwise fallback to tick-based
         for pair in list(self._price_series.keys()):
-            self._calculate_rsi(pair)
+            p = pair.lower()
+            if len(self._rsi_closes[p]) >= self._rsi_period + 1:
+                self._calculate_rsi_from_closes(p)
+            else:
+                self._calculate_rsi(p)
 
     def _volatility_stats(self, pair_l: str):
         try:
@@ -1157,6 +1202,24 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         except Exception:
             pass
         return super().closeEvent(event)
+
+    # --- Helpers for Alerts Settings ---
+    def _fetch_top_coin_ids(self, n: int) -> List[str]:
+        try:
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {
+                "vs_currency": "usd",
+                "order": "market_cap_desc",
+                "per_page": int(n),
+                "page": 1,
+                "sparkline": "false",
+            }
+            resp = requests.get(url, params=params, timeout=10)
+            resp.raise_for_status()
+            data = resp.json() or []
+            return [c.get("id") for c in data if c and c.get("id")]
+        except Exception:
+            return []
 
 
 def main():
