@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'android/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 jobs:
