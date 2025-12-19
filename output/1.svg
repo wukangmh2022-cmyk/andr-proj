@@ -1,0 +1,143 @@
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 定义全局阴影，增加纵深感 -->
+    <filter id="buildingShadow" x="-20%" y="-20%" width="150%" height="150%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="6" dy="6" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge> 
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/> 
+      </feMerge>
+    </filter>
+
+    <!-- 草地纹理 -->
+    <pattern id="grassPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#a3d977"/>
+      <circle cx="10" cy="10" r="2" fill="#95c96b"/>
+    </pattern>
+
+    <!-- 窗户图案 -->
+    <pattern id="windowPattern" x="0" y="0" width="20" height="30" patternUnits="userSpaceOnUse">
+      <rect width="20" height="30" fill="#f0f0f0"/> <!-- 墙面 -->
+      <rect x="4" y="5" width="12" height="15" fill="#87ceeb" stroke="#ccc" stroke-width="1"/> <!-- 窗户 -->
+    </pattern>
+  </defs>
+
+  <!-- 1. 地面基础 -->
+  <rect width="800" height="600" fill="#e0e0e0" /> <!-- 水泥地基调 -->
+  
+  <!-- 绿化区域 -->
+  <path d="M0 0 L800 0 L800 600 L0 600 Z" fill="url(#grassPattern)" />
+  
+  <!-- 道路系统 (灰色路径) -->
+  <path d="M400 580 L400 450 L150 450 L150 300 M400 450 L650 450 L650 300 M400 450 L400 250" 
+        stroke="#dcdcdc" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 2. 体育场区域 (右下侧) -->
+  <g transform="translate(480, 320)">
+    <!-- 跑道底色 -->
+    <rect x="0" y="0" width="280" height="160" rx="80" ry="80" fill="#d65a5a" filter="url(#buildingShadow)"/>
+    <!-- 跑道白线 -->
+    <rect x="15" y="15" width="250" height="130" rx="65" ry="65" fill="none" stroke="#fff" stroke-width="2" opacity="0.7"/>
+    <rect x="30" y="30" width="220" height="100" rx="50" ry="50" fill="none" stroke="#fff" stroke-width="2" opacity="0.7"/>
+    <!-- 足球场草皮 -->
+    <rect x="45" y="45" width="190" height="70" rx="10" ry="10" fill="#4caf50"/>
+    <!-- 中圈和中线 -->
+    <line x1="140" y1="45" x2="140" y2="115" stroke="#fff" stroke-width="2" opacity="0.6"/>
+    <circle cx="140" cy="80" r="15" stroke="#fff" stroke-width="2" fill="none" opacity="0.6"/>
+  </g>
+
+  <!-- 3. 篮球场 (左下侧) -->
+  <g transform="translate(50, 350)" filter="url(#buildingShadow)">
+    <rect width="120" height="80" fill="#4c6ef5"/>
+    <rect x="60" y="0" width="2" height="80" fill="#fff" opacity="0.5"/>
+    <circle cx="60" cy="40" r="10" stroke="#fff" stroke-width="2" fill="none"/>
+    <path d="M10 25 L10 55 L25 55 L25 25 Z" fill="none" stroke="#fff" stroke-width="2"/>
+    <path d="M110 25 L110 55 L95 55 L95 25 Z" fill="none" stroke="#fff" stroke-width="2"/>
+  </g>
+  <g transform="translate(180, 350)" filter="url(#buildingShadow)">
+    <rect width="120" height="80" fill="#4c6ef5"/>
+    <rect x="60" y="0" width="2" height="80" fill="#fff" opacity="0.5"/>
+    <circle cx="60" cy="40" r="10" stroke="#fff" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- 4. 主教学楼 (中央上方，U型结构，带3D厚度) -->
+  <g transform="translate(200, 80)" filter="url(#buildingShadow)">
+    <!-- 侧面 (模拟厚度/墙体) -->
+    <path d="M0 150 L0 180 L400 180 L400 150" fill="#b0bec5"/> <!--底边侧面-->
+    <path d="M0 150 L0 180 L100 180 L100 50 L130 50 L130 180 L270 180 L270 50 L300 50 L300 180 L400 180 L400 150" fill="#cfd8dc"/>
+    
+    <!-- 顶面 (屋顶) -->
+    <path d="M0 0 L100 0 L100 100 L300 100 L300 0 L400 0 L400 150 L0 150 Z" fill="#eceff1"/>
+    
+    <!-- 装饰：屋顶的女儿墙/边缘 -->
+    <path d="M5 5 L95 5 L95 95 L305 95 L305 5 L395 5 L395 145 L5 145 Z" fill="none" stroke="#90a4ae" stroke-width="2"/>
+    
+    <!-- 教学楼前面的窗户 (通过填充Pattern) -->
+    <rect x="0" y="150" width="100" height="30" fill="url(#windowPattern)"/>
+    <rect x="300" y="150" width="100" height="30" fill="url(#windowPattern)"/>
+    <rect x="130" y="150" width="140" height="30" fill="url(#windowPattern)"/>
+
+    <!-- 入口阶梯 -->
+    <path d="M180 180 L220 180 L230 200 L170 200 Z" fill="#9e9e9e"/>
+  </g>
+
+  <!-- 5. 图书馆/行政楼 (左上角) -->
+  <g transform="translate(40, 60)" filter="url(#buildingShadow)">
+    <!-- 侧面 -->
+    <rect x="0" y="80" width="120" height="40" fill="#8d6e63"/>
+    <!-- 顶面 (斜顶) -->
+    <path d="M0 80 L60 40 L120 80 L120 10 L0 10 Z" fill="#a1887f"/>
+    <rect x="10" y="20" width="100" height="50" fill="#d7ccc8"/> <!-- 平顶部分 -->
+    <text x="60" y="55" font-family="sans-serif" font-size="12" fill="#5d4037" text-anchor="middle" font-weight="bold">LIBRARY</text>
+  </g>
+
+  <!-- 6. 升旗台 (中心广场) -->
+  <g transform="translate(400, 280)">
+    <rect x="-40" y="-20" width="80" height="40" fill="#bdbdbd"/> <!-- 平台 -->
+    <circle cx="0" cy="0" r="3" fill="#555"/> <!-- 旗杆底座 -->
+    <!-- 旗杆 -->
+    <line x1="0" y1="0" x2="0" y2="-60" stroke="#777" stroke-width="2"/>
+    <!-- 影子 (增加立体感) -->
+    <line x1="0" y1="0" x2="40" y2="40" stroke="#000" stroke-width="2" opacity="0.2"/>
+    <!-- 红旗 -->
+    <path d="M0 -60 L25 -50 L0 -40 Z" fill="#ff0000"/>
+  </g>
+
+  <!-- 7. 校门 (底部正中) -->
+  <g transform="translate(350, 560)" filter="url(#buildingShadow)">
+    <rect x="0" y="0" width="20" height="40" fill="#555"/> <!-- 左柱 -->
+    <rect x="80" y="0" width="20" height="40" fill="#555"/> <!-- 右柱 -->
+    <rect x="20" y="20" width="60" height="10" fill="#silver" opacity="0.6"/> <!-- 伸缩门 -->
+    <text x="50" y="55" font-family="serif" font-size="14" fill="#333" text-anchor="middle" font-weight="bold">未来学校</text>
+  </g>
+
+  <!-- 8. 树木 (增加层次感和遮挡关系) -->
+  <!-- 定义树的函数: 圆形树冠 + 阴影 -->
+  <g id="trees">
+    <g transform="translate(100, 500)">
+      <circle cx="0" cy="5" r="15" fill="#000" opacity="0.2"/>
+      <circle cx="0" cy="0" r="15" fill="#43a047"/>
+      <circle cx="-5" cy="-5" r="5" fill="#66bb6a"/>
+    </g>
+    <g transform="translate(700, 500)">
+      <circle cx="0" cy="5" r="18" fill="#000" opacity="0.2"/>
+      <circle cx="0" cy="0" r="18" fill="#2e7d32"/>
+    </g>
+    <g transform="translate(600, 250)">
+      <circle cx="0" cy="5" r="12" fill="#000" opacity="0.2"/>
+      <circle cx="0" cy="0" r="12" fill="#4caf50"/>
+    </g>
+    <g transform="translate(250, 250)">
+       <circle cx="0" cy="5" r="14" fill="#000" opacity="0.2"/>
+      <circle cx="0" cy="0" r="14" fill="#388e3c"/>
+    </g>
+     <g transform="translate(650, 100)">
+       <circle cx="0" cy="5" r="16" fill="#000" opacity="0.2"/>
+      <circle cx="0" cy="0" r="16" fill="#66bb6a"/>
+    </g>
+  </g>
+</svg>

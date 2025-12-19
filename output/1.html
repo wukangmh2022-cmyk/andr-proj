@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交易结构分析系统</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      min-height: 100vh;
+      padding: 24px;
+      color: #fff;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header {
+      background: linear-gradient(90deg, #2563eb 0%, #9333ea 100%);
+      padding: 48px;
+      border-radius: 16px;
+      margin-bottom: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .header h1 { font-size: 36px; margin-bottom: 8px; }
+    .header p { color: #93c5fd; font-size: 14px; }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .card h2 { font-size: 20px; margin-bottom: 16px; color: #60a5fa; }
+    .input-group { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 12px;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #3b82f6; }
+    .input-row { display: flex; gap: 16px; flex-direction: column; }
+    label { display: block; color: #94a3b8; font-size: 13px; margin-bottom: 8px; }
+    input, select {
+      width: 100%;
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 12px;
+      color: #fff;
+      font-size: 14px;
+    }
+    input:focus, select:focus { outline: none; border-color: #3b82f6; }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover { background: #1d4ed8; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .stat-card.blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+    .stat-card.purple { background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%); }
+    .stat-card.orange { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+    .stat-label { font-size: 13px; color: rgba(255,255,255,0.9); margin-bottom: 8px; }
+    .stat-value { font-size: 32px; font-weight: bold; }
+    .stat-sub { font-size: 12px; margin-top: 4px; color: rgba(255,255,255,0.8); }
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px; margin-bottom: 24px; }
+    .chart-container { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; }
+    .chart-title { font-size: 18px; margin-bottom: 16px; color: #60a5fa; }
+    .line-chart, .bar-chart {
+      width: 100%;
+      height: 300px;
+      position: relative;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+    th { color: #94a3b8; font-weight: 500; font-size: 13px; }
+    td { color: #e2e8f0; font-size: 14px; }
+    tr:hover { background: rgba(51, 65, 85, 0.3); }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge.long { background: #10b981; color: white; }
+    .badge.short { background: #ef4444; color: white; }
+    .profit { color: #10b981; font-weight: 600; }
+    .loss { color: #ef4444; font-weight: 600; }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      background: #1e293b;
+      border: 2px dashed #334155;
+      border-radius: 12px;
+      color: #64748b;
+    }
+    .empty-state svg { margin: 0 auto 16px; opacity: 0.5; }
+    .symbol-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .symbol-item {
+      background: #334155;
+      padding: 16px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .symbol-color { width: 16px; height: 16px; border-radius: 4px; margin-right: 12px; }
+    canvas { max-width: 100%; }
+    @media (max-width: 768px) {
+      .input-group { grid-template-columns: 1fr; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>交易结构分析系统</h1>
+      <p>Professional Trading Analytics Dashboard</p>
+    </div>
+
+    <div class="card">
+      <h2>📊 数据导入</h2>
+      <div class="input-group">
+        <div>
+          <label>粘贴 CSV 数据（包含表头）</label>
+          <textarea id="csvInput" placeholder="交易对,方向,倍数,开仓时间,开仓均价,平仓均价,收益率,收益&#10;JUP-USDT-SWAP,多,10,2025/5/23 10:56,0.6155,0.6111,-7.15%,-180&#10;BTC-USDT-SWAP,空,5,2025/5/23 11:20,45000,44500,11.11%,500"></textarea>
+          <button onclick="parseData()" style="margin-top: 8px;">解析数据</button>
+        </div>
+        <div class="input-row">
+          <div>
+            <label>初始资金</label>
+            <input type="number" id="initialCapital" value="10000">
+          </div>
+          <div>
+            <label>交易品种筛选</label>
+            <select id="symbolFilter" onchange="filterData()">
+              <option value="全部">全部</option>
+            </select>
+          </div>
+          <!-- 移除杠杆模式切换：默认柱子高度按倍数放大 -->
+        </div>
+      </div>
+    </div>
+
+    <div id="results" style="display:none;">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">总收益</div>
+          <div class="stat-value" id="totalProfit">0</div>
+        </div>
+        <div class="stat-card blue">
+                            <div class="stat-label">胜率</div>
+          <div class="stat-value" id="winRate">0%</div>
+          <div class="stat-sub" id="winLoss">0胜 / 0负</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-label">最大回撤</div>
+          <div class="stat-value" id="maxDrawdown">0%</div>
+          <div class="stat-sub" id="drawdownAmount">0</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-label">总交易次数</div>
+          <div class="stat-value" id="totalTrades">0</div>
+          <div class="stat-sub" id="longShort">多:0 空:0</div>
+        </div>
+      </div>
+
+      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 24px;">
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 13px; color: #94a3b8; margin-bottom: 4px;">平均收益</div>
+          <div style="font-size: 24px; font-weight: bold;" id="avgProfit">0</div>
+        </div>
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 13px; color: #94a3b8; margin-bottom: 4px;">夏普比率</div>
+          <div style="font-size: 24px; font-weight: bold;" id="sharpeRatio">0</div>
+        </div>
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 13px; color: #94a3b8; margin-bottom: 4px;">收益回撤比</div>
+          <div style="font-size: 24px; font-weight: bold;" id="profitDrawdownRatio">0</div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-container" style="position: relative;">
+          <div class="chart-title">📈 资金曲线 & 回撤</div>
+          <div style="position:relative;">
+            <canvas id="equityChart" width="600" height="300"></canvas>
+            <canvas id="equityKlineOverlay" width="600" height="300" style="position:absolute;left:0;top:0;pointer-events:none;"></canvas>
+          </div>
+          <div id="equityTooltip" class="chart-tooltip"></div>
+        </div>
+        <div class="chart-container" style="position: relative;">
+          <div class="chart-title">📊 多空仓位占比（柱高按倍数放大）</div>
+          <div style="position:relative;">
+            <canvas id="positionChart" width="600" height="300"></canvas>
+            <canvas id="positionKlineOverlay" width="600" height="300" style="position:absolute;left:0;top:0;pointer-events:none;"></canvas>
+          </div>
+          <div id="positionTooltip" class="chart-tooltip"></div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-container" style="position: relative;">
+          <div class="chart-title">📉 最大回撤曲线</div>
+          <canvas id="drawdownChart" width="600" height="300"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🎯 交易品种分布</h2>
+        <div class="symbol-list" id="symbolList"></div>
+      </div>
+
+      <div class="card">
+        <h2>🏆 TOP 20 关键交易</h2>
+        <div style="overflow-x: auto;">
+          <table id="top20Table">
+            <thead>
+              <tr>
+                <th>排名</th>
+                <th>交易对</th>
+                <th>方向</th>
+                <th>倍数</th>
+                <th>开仓时间</th>
+                <th style="text-align:right;">收益率</th>
+                <th style="text-align:right;">收益</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+      <p style="font-size: 18px; margin-bottom: 8px;">请在上方粘贴 CSV 数据</p>
+      <p style="font-size: 14px;">格式：交易对,方向,倍数,开仓时间,开仓均价,平仓均价,收益率,收益</p>
+    </div>
+  </div>
+
+  <script>
+    let allData = [];
+    let filteredData = [];
+    let equityChartData = [];
+    let positionChartData = [];
+    const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+    // 初始化图表交互
+    window.addEventListener('load', () => {
+      const equityCanvas = document.getElementById('equityChart');
+      const positionCanvas = document.getElementById('positionChart');
+      
+      equityCanvas.addEventListener('mousemove', (e) => handleEquityChartHover(e));
+      equityCanvas.addEventListener('mouseleave', () => hideTooltip('equityTooltip'));
+      
+      positionCanvas.addEventListener('mousemove', (e) => handlePositionChartHover(e));
+      positionCanvas.addEventListener('mouseleave', () => hideTooltip('positionTooltip'));
+    });
+
+    function handleEquityChartHover(e) {
+      const canvas = document.getElementById('equityChart');
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const w = canvas.width;
+      const h = canvas.height;
+      
+      // 判断是否在图表区域内
+      if (x < 40 || x > w - 40 || y < 20 || y > h - 40) {
+        hideTooltip('equityTooltip');
+        return;
+      }
+      
+      // 计算最近的数据点
+      const dataIndex = Math.round(((x - 40) / (w - 80)) * (equityChartData.length - 1));
+      if (dataIndex >= 0 && dataIndex < equityChartData.length) {
+        const data = equityChartData[dataIndex];
+        const trade = filteredData[dataIndex];
+        const tooltip = document.getElementById('equityTooltip');
+        
+        const drawdown = ((data.peak - data.equity) / data.peak * 100).toFixed(2);
+        const drawdownAmount = (data.peak - data.equity).toFixed(2);
+        
+        tooltip.innerHTML = `
+          <div style=\"color: #94a3b8; margin-bottom: 4px;\">第 ${dataIndex + 1} 笔交易</div>
+          <div style=\"color: #fff;\"><strong>交易对:</strong> ${trade.交易对}</div>
+          <div style=\"color: #fff;\"><strong>入场/出场:</strong> ${trade.开仓均价} → ${trade.平仓均价}</div>
+          <div style=\"color: #10b981;\"><strong>账户权益:</strong> ${data.equity.toFixed(2)}</div>
+          <div style=\"color: #3b82f6;\"><strong>历史峰值:</strong> ${data.peak.toFixed(2)}</div>
+          <div style=\"color: ${drawdown > 0 ? '#ef4444' : '#10b981'};\"><strong>当前回撤:</strong> ${drawdown}% (${drawdownAmount})</div>
+          <div style=\"color: #94a3b8; font-size: 12px; margin-top: 4px;\">${data.date}</div>
+        `;
+        
+        tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+        tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
+        tooltip.classList.add('show');
+
+        // 叠加K线（两幅图同步）
+        const symbol = (function(){
+          if (!trade || !trade.交易对) return null;
+          const m = trade.交易对.match(/^([A-Z0-9]+)-USDT/);
+          return m ? (m[1] + 'USDT') : null;
+        })();
+        if (symbol) {
+          const baseTs = new Date(trade.开仓时间.replace(/\//g,'-')).getTime();
+          const win = 6 * 60 * 60 * 1000; // 前后6小时窗口
+          const start = baseTs - win;
+          const end = baseTs + win;
+          (async () => {
+            try {
+              const k = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=15m&startTime=${start}&endTime=${end}`).then(r=>r.ok?r.json():[]);
+              drawKlineOverlay('equityKlineOverlay', k);
+              drawKlineOverlay('positionKlineOverlay', k);
+            } catch {}
+          })();
+        }
+      }
+    }
+
+    function handlePositionChartHover(e) {
+      const canvas = document.getElementById('positionChart');
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const w = canvas.width;
+      const h = canvas.height;
+      
+      if (x < 40 || x > w - 40 || y < 20 || y > h - 40) {
+        hideTooltip('positionTooltip');
+        return;
+      }
+      
+      const barWidth = Math.max(2, (w - 80) / positionChartData.length);
+      const dataIndex = Math.floor((x - 40) / barWidth);
+      
+      if (dataIndex >= 0 && dataIndex < positionChartData.length) {
+        const data = positionChartData[dataIndex];
+        const tooltip = document.getElementById('positionTooltip');
+        const mode = document.getElementById('positionMode').value;
+        
+        tooltip.innerHTML = `
+          <div style="color: #94a3b8; margin-bottom: 4px;">第 ${dataIndex + 1} 笔交易</div>
+          <div style="color: ${data.direction === '多' ? '#10b981' : '#ef4444'};"><strong>方向:</strong> ${data.direction}</div>
+          <div style="color: #fff;"><strong>仓位占比:</strong> ${data.positionPct.toFixed(2)}%</div>
+          <div style="color: #fff;"><strong>杠杆倍数:</strong> ${data.leverage}x</div>
+          <div style="color: #fff;"><strong>收益:</strong> ${data.profit.toFixed(2)}</div>
+          ${mode === 'leverage' ? `<div style="color: #fbbf24; font-size: 12px; margin-top: 4px;">杠杆模式: ${data.positionPct.toFixed(1)}%</div>` : ''}
+          <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">${data.date}</div>
+        `;
+        
+        tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+        tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
+        tooltip.classList.add('show');
+      }
+    }
+
+    function hideTooltip(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    function parseData() {
+      const csv = document.getElementById('csvInput').value.trim();
+      if (!csv) return;
+
+      const lines = csv.split('\n');
+      allData = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        if (values.length >= 8) {
+          allData.push({
+            交易对: values[0].trim(),
+            方向: values[1].trim(),
+            倍数: parseFloat(values[2]) || 1,
+            开仓时间: values[3].trim(),
+            开仓均价: parseFloat(values[4]) || 0,
+            平仓均价: parseFloat(values[5]) || 0,
+            收益率: parseFloat(values[6].replace('%', '')) || 0,
+            收益: parseFloat(values[7]) || 0
+          });
+        }
+      }
+
+      updateSymbolFilter();
+      filterData();
+    }
+
+    function updateSymbolFilter() {
+      const symbols = ['全部', ...new Set(allData.map(d => d.交易对))];
+      const select = document.getElementById('symbolFilter');
+      select.innerHTML = symbols.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    function filterData() {
+      const filter = document.getElementById('symbolFilter').value;
+      filteredData = filter === '全部' ? allData : allData.filter(d => d.交易对 === filter);
+      
+      if (filteredData.length > 0) {
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('emptyState').style.display = 'none';
+        updateStats();
+        drawCharts();
+        updateTop20();
+        updateSymbolDistribution();
+      }
+    }
+
+    function updateStats() {
+      const totalProfit = filteredData.reduce((sum, d) => sum + d.收益, 0);
+      const winTrades = filteredData.filter(d => d.收益 > 0).length;
+      const lossTrades = filteredData.filter(d => d.收益 < 0).length;
+      const winRate = ((winTrades / filteredData.length) * 100).toFixed(2);
+      const avgProfit = (totalProfit / filteredData.length).toFixed(2);
+      const longTrades = filteredData.filter(d => d.方向 === '多').length;
+      const shortTrades = filteredData.filter(d => d.方向 === '空').length;
+
+      // 计算回撤
+      const initialCapital = parseFloat(document.getElementById('initialCapital').value);
+      let equity = initialCapital;
+      let peak = initialCapital;
+      let maxDrawdown = 0;
+      let maxDrawdownAmount = 0;
+
+      filteredData.forEach(d => {
+        equity += d.收益;
+        if (equity > peak) {
+          peak = equity;
+        }
+        const drawdown = ((peak - equity) / peak) * 100;
+        if (drawdown > maxDrawdown) {
+          maxDrawdown = drawdown;
+          maxDrawdownAmount = peak - equity;
+        }
+      });
+
+      // 计算夏普比率（简化版）
+      const returns = filteredData.map(d => (d.收益 / initialCapital) * 100);
+      const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+      const stdDev = Math.sqrt(variance);
+      const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev).toFixed(2) : '0';
+
+      // 收益回撤比
+      const profitDrawdownRatio = maxDrawdown > 0 ? ((totalProfit / initialCapital * 100) / maxDrawdown).toFixed(2) : '∞';
+
+      document.getElementById('totalProfit').textContent = totalProfit.toFixed(2);
+      document.getElementById('winRate').textContent = winRate + '%';
+      document.getElementById('winLoss').textContent = `${winTrades}胜 / ${lossTrades}负`;
+      document.getElementById('totalTrades').textContent = filteredData.length;
+      document.getElementById('longShort').textContent = `多:${longTrades} 空:${shortTrades}`;
+      document.getElementById('avgProfit').textContent = avgProfit;
+      document.getElementById('maxDrawdown').textContent = maxDrawdown.toFixed(2) + '%';
+      document.getElementById('drawdownAmount').textContent = maxDrawdownAmount.toFixed(2);
+      document.getElementById('sharpeRatio').textContent = sharpeRatio;
+      document.getElementById('profitDrawdownRatio').textContent = profitDrawdownRatio;
+    }
+
+    function drawCharts() {
+      drawEquityChart();
+      drawPositionChart2();
+      drawDrawdownChart();
+    }
+
+    function drawEquityChart() {
+      const canvas = document.getElementById('equityChart');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const initialCapital = parseFloat(document.getElementById('initialCapital').value);
+
+      ctx.clearRect(0, 0, w, h);
+
+      let equity = initialCapital;
+      let peak = initialCapital;
+      
+      // 计算权益和回撤点，同时保存到全局变量供tooltip使用
+      equityChartData = [];
+      const drawdownPoints = [];
+      
+      filteredData.forEach((d, i) => {
+        equity += d.收益;
+        if (equity > peak) peak = equity;
+        
+        equityChartData.push({ 
+          x: (i / (filteredData.length - 1)) * (w - 80) + 40, 
+          equity: equity,
+          peak: peak,
+          date: d.开仓时间,
+          index: i
+        });
+        
+        drawdownPoints.push({
+          x: (i / (filteredData.length - 1)) * (w - 80) + 40,
+          peak: peak,
+          equity: equity
+        });
+      });
+
+      const maxEquity = Math.max(...equityChartData.map(p => p.equity), ...equityChartData.map(p => p.peak));
+      const minEquity = Math.min(...equityChartData.map(p => p.equity), initialCapital);
+      const range = maxEquity - minEquity;
+
+      // 绘制网格
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = (h - 60) * (i / 5) + 20;
+        ctx.beginPath();
+        ctx.moveTo(40, y);
+        ctx.lineTo(w - 40, y);
+        ctx.stroke();
+      }
+
+      // 绘制回撤区域（从峰值往下的红色阴影）
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+      ctx.beginPath();
+      
+      drawdownPoints.forEach((p, i) => {
+        const peakY = h - 40 - ((p.peak - minEquity) / range) * (h - 60);
+        const equityY = h - 40 - ((p.equity - minEquity) / range) * (h - 60);
+        
+        if (i === 0) {
+          ctx.moveTo(p.x, peakY);
+        } else {
+          ctx.lineTo(p.x, peakY);
+        }
+      });
+      
+      // 反向回到起点，形成闭合区域
+      for (let i = drawdownPoints.length - 1; i >= 0; i--) {
+        const p = drawdownPoints[i];
+        const equityY = h - 40 - ((p.equity - minEquity) / range) * (h - 60);
+        ctx.lineTo(p.x, equityY);
+      }
+      
+      ctx.closePath();
+      ctx.fill();
+
+      // 绘制峰值虚线（蓝色）
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      equityChartData.forEach((p, i) => {
+        const x = p.x;
+        const y = h - 40 - ((p.peak - minEquity) / range) * (h - 60);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 绘制权益曲线（绿色粗线）
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      equityChartData.forEach((p, i) => {
+        const x = p.x;
+        const y = h - 40 - ((p.equity - minEquity) / range) * (h - 60);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // 绘制坐标轴标签
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(minEquity.toFixed(0), 5, h - 35);
+      ctx.fillText(maxEquity.toFixed(0), 5, 25);
+
+      // 添加图例
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(w - 150, 20, 20, 3);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('账户权益', w - 125, 25);
+      
+      ctx.strokeStyle = '#3b82f6';
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(w - 150, 42);
+      ctx.lineTo(w - 130, 42);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('历史峰值', w - 125, 45);
+      
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+      ctx.fillRect(w - 150, 55, 20, 10);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('回撤区域', w - 125, 64);
+    }
+
+    // 旧版 drawPositionChart 已废弃（保留占位以便对比）。
+
+    function updateTop20() {
+      const top20 = [...filteredData].sort((a, b) => Math.abs(b.收益) - Math.abs(a.收益)).slice(0, 20);
+      const tbody = document.querySelector('#top20Table tbody');
+      
+      tbody.innerHTML = top20.map((d, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td><strong>${d.交易对}</strong></td>
+          <td><span class="badge ${d.方向 === '多' ? 'long' : 'short'}">${d.方向}</span></td>
+          <td>${d.倍数}x</td>
+          <td>${d.开仓时间}</td>
+          <td style="text-align:right;" class="${d.收益率 >= 0 ? 'profit' : 'loss'}">${d.收益率.toFixed(2)}%</td>
+          <td style="text-align:right;" class="${d.收益 >= 0 ? 'profit' : 'loss'}">${d.收益.toFixed(2)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function updateSymbolDistribution() {
+      const distribution = {};
+      allData.forEach(d => {
+        if (!distribution[d.交易对]) {
+          distribution[d.交易对] = { count: 0, profit: 0 };
+        }
+        distribution[d.交易对].count++;
+        distribution[d.交易对].profit += d.收益;
+      });
+
+      const list = document.getElementById('symbolList');
+      list.innerHTML = Object.entries(distribution).map(([name, data], i) => `
+        <div class="symbol-item">
+          <div style="display:flex; align-items:center;">
+            <div class="symbol-color" style="background:${COLORS[i % COLORS.length]}"></div>
+            <strong>${name}</strong>
+          </div>
+          <div style="text-align:right;">
+            <div>${data.count} 次</div>
+            <div class="${data.profit >= 0 ? 'profit' : 'loss'}" style="font-size:12px;">${data.profit.toFixed(2)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 覆盖原有的 handlePositionChartHover，加入入场/出场与同步K线
+    function handlePositionChartHover(e) {
+      const canvas = document.getElementById('positionChart');
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const w = canvas.width;
+      const h = canvas.height;
+      if (x < 40 || x > w - 40 || y < 20 || y > h - 40) {
+        hideTooltip('positionTooltip');
+        return;
+      }
+      const barWidth = Math.max(2, (w - 80) / positionChartData.length);
+      const dataIndex = Math.floor((x - 40) / barWidth);
+      if (dataIndex < 0 || dataIndex >= positionChartData.length) return;
+      const data = positionChartData[dataIndex];
+      const trade = filteredData[dataIndex];
+      const tooltip = document.getElementById('positionTooltip');
+      tooltip.innerHTML = `
+        <div style=\"color: #94a3b8; margin-bottom: 4px;\">第 ${dataIndex + 1} 笔交易</div>
+        <div style=\"color: ${data.direction === '多' ? '#10b981' : '#ef4444'};\"><strong>方向:</strong> ${data.direction}</div>
+        <div style=\"color: #fff;\"><strong>仓位占比:</strong> ${data.positionPct.toFixed(2)}%</div>
+        <div style=\"color: #fff;\"><strong>杠杆倍数:</strong> ${data.leverage}x</div>
+        <div style=\"color: #fff;\"><strong>收益:</strong> ${data.profit.toFixed(2)}</div>
+        <div style=\"color: #fff;\"><strong>入场/出场:</strong> ${trade.开仓均价} → ${trade.平仓均价}</div>
+        <div style=\"color: #94a3b8; font-size: 12px; margin-top: 4px;\">${data.date}</div>
+      `;
+      tooltip.style.left = (e.clientX - rect.left + 15) + 'px';
+      tooltip.style.top = (e.clientY - rect.top + 15) + 'px';
+      tooltip.classList.add('show');
+
+      // 同步加载K线
+      if (trade && trade.交易对) {
+        const m = trade.交易对.match(/^([A-Z0-9]+)-USDT/);
+        const symbol = m ? (m[1] + 'USDT') : null;
+        if (symbol) {
+          const baseTs = new Date(trade.开仓时间.replace(/\//g,'-')).getTime();
+          const win = 6 * 60 * 60 * 1000;
+          const start = baseTs - win;
+          const end = baseTs + win;
+          (async () => {
+            try {
+              const k = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=15m&startTime=${start}&endTime=${end}`).then(r=>r.ok?r.json():[]);
+              drawKlineOverlay('equityKlineOverlay', k);
+              drawKlineOverlay('positionKlineOverlay', k);
+            } catch {}
+          })();
+        }
+      }
+    }
+
+    // 新版：柱高默认按杠杆倍数放大
+    function drawPositionChart2() {
+      const canvas = document.getElementById('positionChart');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const initialCapital = parseFloat(document.getElementById('initialCapital').value);
+
+      ctx.clearRect(0, 0, w, h);
+
+      const barWidth = Math.max(2, (w - 80) / filteredData.length);
+      let cumulative = initialCapital;
+      let maxPositionPct = 0;
+
+      positionChartData = [];
+      filteredData.forEach(d => {
+        const baseEquity = cumulative;
+        cumulative += d.收益;
+        const positionValue = Math.abs(d.收益) / (Math.abs(d.收益率) / 100);
+        const positionPct = (positionValue * d.倍数) / baseEquity * 100;
+        maxPositionPct = Math.max(maxPositionPct, positionPct);
+        positionChartData.push({
+          direction: d.方向,
+          positionPct,
+          leverage: d.倍数,
+          profit: d.收益,
+          date: d.开仓时间
+        });
+      });
+
+      const yMax = Math.max(100, Math.ceil(maxPositionPct / 100) * 100);
+
+      // 网格与Y轴
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '12px sans-serif';
+      for (let i = 0; i <= 5; i++) {
+        const y = (h - 60) * (i / 5) + 20;
+        const labelValue = yMax * (1 - i / 5);
+        ctx.beginPath();
+        ctx.moveTo(40, y);
+        ctx.lineTo(w - 40, y);
+        ctx.stroke();
+        ctx.fillText(labelValue.toFixed(0) + '%', 5, y + 4);
+      }
+
+      // 柱体
+      positionChartData.forEach((pos, i) => {
+        const barHeight = (pos.positionPct / yMax) * (h - 60);
+        const x = 40 + i * barWidth;
+        const y = h - 40 - barHeight;
+        ctx.fillStyle = pos.direction === '多' ? '#10b981' : '#ef4444';
+        ctx.fillRect(x, y, barWidth - 1, barHeight);
+      });
+
+      // X轴与图例
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, h - 40);
+      ctx.lineTo(w - 40, h - 40);
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(w - 120, 20, 15, 15);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('多仓', w - 100, 32);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(w - 120, 40, 15, 15);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('空仓', w - 100, 52);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(`最大: ${maxPositionPct.toFixed(1)}%`, w - 120, 72);
+    }
+
+    // 回撤曲线
+    function drawDrawdownChart() {
+      const canvas = document.getElementById('drawdownChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const initialCapital = parseFloat(document.getElementById('initialCapital').value);
+
+      ctx.clearRect(0, 0, w, h);
+      let equity = initialCapital;
+      let peak = initialCapital;
+      const dd = [];
+      filteredData.forEach((d, i) => {
+        equity += d.收益;
+        if (equity > peak) peak = equity;
+        const pct = peak > 0 ? (peak - equity) / peak * 100 : 0;
+        dd.push({ x: (i / Math.max(1, filteredData.length - 1)) * (w - 80) + 40, y: pct });
+      });
+      const yMax = Math.max(10, Math.ceil(Math.max(...dd.map(p => p.y)) / 10) * 10);
+      // 轴
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, 20);
+      ctx.lineTo(40, h - 40);
+      ctx.lineTo(w - 40, h - 40);
+      ctx.stroke();
+      // 网格与刻度
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '12px sans-serif';
+      for (let i = 0; i <= 5; i++) {
+        const pct = yMax * (i / 5);
+        const y = 20 + (h - 60) * (i / 5);
+        ctx.fillText(pct.toFixed(0) + '%', 5, y + 4);
+        ctx.strokeStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(40, y);
+        ctx.lineTo(w - 40, y);
+        ctx.stroke();
+      }
+      // 线
+      ctx.strokeStyle = '#f97316';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      dd.forEach((p, i) => {
+        const y = 20 + (p.y / yMax) * (h - 60);
+        if (i === 0) ctx.moveTo(p.x, y);
+        else ctx.lineTo(p.x, y);
+      });
+      ctx.stroke();
+    }
+
+    // 叠加K线（取收盘价画线）
+    function drawKlineOverlay(canvasId, klines) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !klines || klines.length === 0) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const closes = klines.map(k => parseFloat(k[4]));
+      const min = Math.min(...closes);
+      const max = Math.max(...closes);
+      if (!isFinite(min) || !isFinite(max) || max === min) return;
+      ctx.strokeStyle = 'rgba(147, 197, 253, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      closes.forEach((c, i) => {
+        const x = 40 + (i / (closes.length - 1)) * (w - 80);
+        const y = 20 + (1 - (c - min) / (max - min)) * (h - 60);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+  </script>
+</body>
+</html>

@@ -1,277 +1,287 @@
-*** a/run.py
---- b/run.py
-***************
-*** 1,5 ****
---- 1,6 ----
-  import sys
-  import time
-+ import itertools
-  import os
-  import json
-  import subprocess
-***************
-*** 213,220 ****
-          self._rsi_period = 6  # RSI period length
-          self._rsi_interval = 15 * 60  # 15 minutes in seconds
-          self._rsi_values: dict[str, float] = {}  # Current RSI values
-          self._rsi_last_calc: dict[str, float] = {}  # Last calculation timestamp
-          self._rsi_gains: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
-          self._rsi_losses: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
-          self._rsi_timer = QtCore.QTimer(self)
-          self._rsi_timer.setInterval(60000)  # Check every minute
-          self._rsi_timer.timeout.connect(self._update_rsi_values)
-          self._rsi_timer.start()
---- 214,228 ----
-          self._rsi_period = 6  # RSI period length
-          self._rsi_interval = 15 * 60  # 15 minutes in seconds
-          self._rsi_values: dict[str, float] = {}  # Current RSI values
-          self._rsi_last_calc: dict[str, float] = {}  # Last calculation timestamp
-          self._rsi_gains: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
-          self._rsi_losses: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period))
-+         # --- NEW: use true 15m bar closes for RSI(15m, 6) ---
-+         # We accumulate a "close" once every self._rsi_interval seconds per pair
-+         # and compute RSI from these bar closes to match the exchange setting.
-+         self._rsi_closes: dict[str, deque] = defaultdict(lambda: deque(maxlen=self._rsi_period + 1))
-+         self._rsi_last_bar_close: dict[str, float] = {}
-+         self._rsi_last_bar_ts: dict[str, float] = {}
-          self._rsi_timer = QtCore.QTimer(self)
-          self._rsi_timer.setInterval(60000)  # Check every minute
-          self._rsi_timer.timeout.connect(self._update_rsi_values)
-          self._rsi_timer.start()
-***************
-*** 480,519 ****
-          self.last_ws_price[pair.lower()] = float(price)
-          self._ingest_series(pair, price)
-          self._maybe_alert(pair, price, pct)
-          
-          # Apply RSI styling if available
-          rsi = getattr(self, '_rsi_values', {}).get(pair.lower())
-          if rsi is not None:
-              self._apply_rsi_style(lbl, rsi)
-              
-      def _apply_rsi_style(self, label, rsi):
-          """Apply styling based on RSI value
-          
-          Strong levels: 68, 75, 83, 94
-          Weak levels: 25, 20, 15, 10
-          
-          Level 1: Bold
-          Level 2: Red
-          Level 3: Red + Bold
-          Level 4: Flashing Red + Bold
-          """
--         # Reset styles first
--         label.setStyleSheet("")
--         
--         # Stop any existing animation
--         for animation in label.findChildren(QtCore.QPropertyAnimation):
--             animation.stop()
--             animation.deleteLater()
-+         # Reset styles first (make reset explicit to avoid residual bold/opacity)
-+         label.setStyleSheet("color: #111827; font-weight: normal;")
-+         # Stop any existing animation and remove any opacity effect
-+         for animation in label.findChildren(QtCore.QPropertyAnimation):
-+             animation.stop()
-+             animation.deleteLater()
-+         if label.graphicsEffect() is not None:
-+             label.setGraphicsEffect(None)
-          
-          # Apply styles based on RSI levels
-          if rsi >= 68:  # Strong levels
-              if rsi >= 94:  # Level 4
-                  self._apply_flashing_style(label, "red", True)
-              elif rsi >= 83:  # Level 3
--                 label.setStyleSheet("color: red; font-weight: bold;")
-+                 label.setStyleSheet("color: red; font-weight: bold;")
-              elif rsi >= 75:  # Level 2
--                 label.setStyleSheet("color: red;")
-+                 label.setStyleSheet("color: red; font-weight: normal;")
-              else:  # Level 1 (68-75)
--                 label.setStyleSheet("font-weight: bold;")
-+                 label.setStyleSheet("color: #111827; font-weight: bold;")
-          elif rsi <= 25:  # Weak levels
-              if rsi <= 10:  # Level 4
-                  self._apply_flashing_style(label, "red", True)
-              elif rsi <= 15:  # Level 3
--                 label.setStyleSheet("color: red; font-weight: bold;")
-+                 label.setStyleSheet("color: red; font-weight: bold;")
-              elif rsi <= 20:  # Level 2
--                 label.setStyleSheet("color: red;")
-+                 label.setStyleSheet("color: red; font-weight: normal;")
-              else:  # Level 1 (20-25)
--                 label.setStyleSheet("font-weight: bold;")
-+                 label.setStyleSheet("color: #111827; font-weight: bold;")
-                 
-      def _apply_flashing_style(self, label, color, bold=False):
-          """Apply flashing animation to label"""
-          # Set initial style
-          bold_style = "font-weight: bold;" if bold else ""
-***************
-*** 636,677 ****
-              p = pair.lower()
-              prev_price = self._price_series[p][-1] if self._price_series[p] else None
-              self._price_series[p].append(float(price))
-              vol = float(self.ws.get_quote_volume(p)) if self.ws else 0.0
-              self._vol_series[p].append(vol)
-              now = time.time()
-              self._price_ts[p].append((now, float(price)))
-              
--             # Update RSI data
--             if prev_price is not None:
--                 change = price - prev_price
--                 if change > 0:
--                     self._rsi_gains[p].append(change)
--                     self._rsi_losses[p].append(0)
--                 else:
--                     self._rsi_gains[p].append(0)
--                     self._rsi_losses[p].append(abs(change))
--                 
--                 # Calculate RSI if enough time has passed since last calculation
--                 last_calc = self._rsi_last_calc.get(p, 0)
--                 if now - last_calc >= 60:  # Recalculate at most once per minute
--                     self._calculate_rsi(p)
--                     self._rsi_last_calc[p] = now
-+             # --- NEW: build true 15m bars for RSI(15m, 6) ---
-+             # Always keep latest price as the "candidate close" for the current bar
-+             self._rsi_last_bar_close[p] = float(price)
-+             last_bar_ts = self._rsi_last_bar_ts.get(p, 0.0)
-+             if now - last_bar_ts >= float(self._rsi_interval):
-+                 # time to close the current bar and start a new one
-+                 self._rsi_last_bar_ts[p] = now
-+                 close = self._rsi_last_bar_close.get(p)
-+                 if close is not None:
-+                     self._rsi_closes[p].append(close)
-+                     if len(self._rsi_closes[p]) >= self._rsi_period + 1:
-+                         self._calculate_rsi_from_closes(p)
-          except Exception:
-              pass
-              
-      def _calculate_rsi(self, pair: str):
-          """Calculate RSI-6 for the given pair"""
-          try:
-              p = pair.lower()
-              if len(self._rsi_gains[p]) < self._rsi_period or len(self._rsi_losses[p]) < self._rsi_period:
-                  return
-                  
-              avg_gain = sum(self._rsi_gains[p]) / self._rsi_period
-              avg_loss = sum(self._rsi_losses[p]) / self._rsi_period
-              
-              if avg_loss == 0:
-                  rsi = 100
-              else:
-                  rs = avg_gain / avg_loss
-                  rsi = 100 - (100 / (1 + rs))
-                  
-              self._rsi_values[p] = rsi
-              
-              # Update label style based on RSI
-              idx = self.pair_index.get(p)
-              if idx is not None and idx < len(self.labels):
-                  self._apply_rsi_style(self.labels[idx], rsi)
-          except Exception:
-              pass
-              
-      def _update_rsi_values(self):
-          """Update RSI values for all pairs"""
-          for pair in list(self._price_series.keys()):
-              self._calculate_rsi(pair)
---- 645,726 ----
-              p = pair.lower()
-              prev_price = self._price_series[p][-1] if self._price_series[p] else None
-              self._price_series[p].append(float(price))
-              vol = float(self.ws.get_quote_volume(p)) if self.ws else 0.0
-              self._vol_series[p].append(vol)
-              now = time.time()
-              self._price_ts[p].append((now, float(price)))
-              
-+             # (keep the old tick-based gain/loss buffers for possible future use,
-+             #  but do not use them to compute the displayed RSI anymore)
-+             if prev_price is not None:
-+                 change = float(price) - float(prev_price)
-+                 if change > 0:
-+                     self._rsi_gains[p].append(change)
-+                     self._rsi_losses[p].append(0.0)
-+                 else:
-+                     self._rsi_gains[p].append(0.0)
-+                     self._rsi_losses[p].append(abs(change))
-+ 
-+             # --- NEW: build true 15m bars for RSI(15m, 6) ---
-+             # Always keep latest price as the "candidate close" for the current bar
-+             self._rsi_last_bar_close[p] = float(price)
-+             last_bar_ts = self._rsi_last_bar_ts.get(p, 0.0)
-+             if now - last_bar_ts >= float(self._rsi_interval):
-+                 # time to close the current bar and start a new one
-+                 self._rsi_last_bar_ts[p] = now
-+                 close = self._rsi_last_bar_close.get(p)
-+                 if close is not None:
-+                     self._rsi_closes[p].append(close)
-+                     if len(self._rsi_closes[p]) >= self._rsi_period + 1:
-+                         self._calculate_rsi_from_closes(p)
-          except Exception:
-              pass
-              
-      def _calculate_rsi(self, pair: str):
-          """Calculate RSI-6 for the given pair"""
-          try:
-              p = pair.lower()
-              if len(self._rsi_gains[p]) < self._rsi_period or len(self._rsi_losses[p]) < self._rsi_period:
-                  return
-                  
-              avg_gain = sum(self._rsi_gains[p]) / self._rsi_period
-              avg_loss = sum(self._rsi_losses[p]) / self._rsi_period
-              
-              if avg_loss == 0:
-                  rsi = 100
-              else:
-                  rs = avg_gain / avg_loss
-                  rsi = 100 - (100 / (1 + rs))
-                  
-              self._rsi_values[p] = rsi
-              
-              # Update label style based on RSI
-              idx = self.pair_index.get(p)
-              if idx is not None and idx < len(self.labels):
-                  self._apply_rsi_style(self.labels[idx], rsi)
-          except Exception:
-              pass
-+ 
-+     # --- NEW: RSI from 15m bar closes to match exchange RSI(15m, 6) ---
-+     def _calculate_rsi_from_closes(self, pair: str):
-+         """Calculate RSI(self._rsi_period) from last (period+1) 15m closes."""
-+         try:
-+             p = pair.lower()
-+             closes = list(self._rsi_closes[p])
-+             if len(closes) < self._rsi_period + 1:
-+                 return
-+             gains, losses = [], []
-+             for i in range(1, len(closes)):
-+                 ch = closes[i] - closes[i - 1]
-+                 gains.append(max(ch, 0.0))
-+                 losses.append(max(-ch, 0.0))
-+             # Only last N changes
-+             gains = gains[-self._rsi_period:]
-+             losses = losses[-self._rsi_period:]
-+             if len(gains) < self._rsi_period or len(losses) < self._rsi_period:
-+                 return
-+             avg_gain = sum(gains) / float(self._rsi_period)
-+             avg_loss = sum(losses) / float(self._rsi_period)
-+             rsi = 100.0 if avg_loss == 0 else (100.0 - 100.0 / (1.0 + (avg_gain / avg_loss)))
-+             self._rsi_values[p] = rsi
-+             idx = self.pair_index.get(p)
-+             if idx is not None and idx < len(self.labels):
-+                 self._apply_rsi_style(self.labels[idx], rsi)
-+         except Exception:
-+             pass
-              
-      def _update_rsi_values(self):
-          """Update RSI values for all pairs"""
--         for pair in list(self._price_series.keys()):
--             self._calculate_rsi(pair)
-+         # Keep periodic refresh, prefer bar-close based RSI if closes available.
-+         for pair in list(self._price_series.keys()):
-+             p = pair.lower()
-+             if len(self._rsi_closes[p]) >= self._rsi_period + 1:
-+                 self._calculate_rsi_from_closes(p)
-+             else:
-+                 # Fallback to tick-based RSI until enough 15m bars are collected.
-+                 self._calculate_rsi(p)
+diff --git a/run.py b/run.py
+--- a/run.py
++++ b/run.py
+@@ -12,6 +12,7 @@
+ import requests
+ 
+ from PySide6 import QtCore, QtGui, QtWidgets
+ from PySide6.QtWebSockets import QWebSocket
+ from PySide6.QtCore import QUrl
++from typing import Set
+ 
+ 
+ class CryptoDataFetcher:
+@@ -44,6 +45,32 @@
+             return [
+                 {"id": "bitcoin", "symbol": "btc", "current_price": 100000.0, "price_change_percentage_24h": 1.5},
+                 {"id": "ethereum", "symbol": "eth", "current_price": 4000.0, "price_change_percentage_24h": 1.2},
+             ]
+ 
++    # --- NEW: Binance Futures HTTP prices for audit (symbols like 'btcusdt') ---
++    def fetch_binance_futures_prices(self, symbols: List[str]) -> Dict[str, float]:
++        """
++        Fetch latest prices for given futures symbols from Binance Futures REST.
++        Endpoint: https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT
++        Returns: { 'btcusdt': 65000.0, ... } (lower-cased keys)
++        """
++        out: Dict[str, float] = {}
++        if not symbols:
++            return out
++        base = "https://fapi.binance.com/fapi/v1/ticker/price"
++        for s in symbols:
++            sym = (s or "").upper()
++            if not sym:
++                continue
++            try:
++                resp = requests.get(base, params={"symbol": sym}, timeout=5)
++                resp.raise_for_status()
++                data = resp.json() or {}
++                p = float(data.get("price") or 0.0)
++                if p > 0:
++                    out[s.lower()] = p
++            except Exception:
++                pass
++        return out
++
+     def fetch_crypto_prices_for_ids(self, ids: List[str]) -> List[Dict]:
+         try:
+             if not ids:
+                 return []
+             url = "https://api.coingecko.com/api/v3/coins/markets"
+@@ -79,34 +106,62 @@
+         self.data_ready.emit(data)
+ 
+ 
+-class PriceWS(QtCore.QObject):
++class PriceWS(QtCore.QObject):
+     price_update = QtCore.Signal(str, float, float)  # pair, price, pct
+ 
+     def __init__(self, parent=None):
+         super().__init__(parent)
+-        self.ws: QWebSocket | None = None
+-        self.pairs: list[str] = []
++        # Two sockets: SPOT & FUTURES
++        self.ws_spot: QWebSocket | None = None
++        self.ws_futures: QWebSocket | None = None
++        self.pairs_spot: list[str] = []
++        self.pairs_futures: list[str] = []
+         self._reconnect_timer = QtCore.QTimer(self)
+         self._reconnect_timer.setSingleShot(True)
+         self._reconnect_timer.timeout.connect(self._reconnect)
+         self.last_quote_volume: dict[str, float] = {}
+ 
+-    def connect_pairs(self, pairs: list[str]):
+-        self.pairs = [p.lower() for p in pairs if isinstance(p, str) and p]
+-        self._open()
++    def connect_pairs(self, spot_pairs: list[str], futures_pairs: list[str]):
++        self.pairs_spot = sorted({(p or "").lower() for p in spot_pairs if p})
++        self.pairs_futures = sorted({(p or "").lower() for p in futures_pairs if p})
++        self._open()
+ 
+     def close(self):
+-        if self.ws is not None:
+-            try:
+-                self.ws.close()
+-            except Exception:
+-                pass
+-            try:
+-                self.ws.deleteLater()
+-            except Exception:
+-                pass
+-            self.ws = None
++        for attr in ("ws_spot", "ws_futures"):
++            ws = getattr(self, attr, None)
++            if ws is not None:
++                try:
++                    ws.close()
++                except Exception:
++                    pass
++                try:
++                    ws.deleteLater()
++                except Exception:
++                    pass
++                setattr(self, attr, None)
+ 
+     def _open(self):
+-        self.close()
+-        if not self.pairs:
+-            return
+-        url = "wss://stream.binance.com:9443/stream?streams=" + "/".join(f"{p}@miniTicker" for p in self.pairs)
+-        self.ws = QWebSocket()
+-        self.ws.textMessageReceived.connect(self._on_msg)
+-        self.ws.errorOccurred.connect(self._on_error)
+-        # Use disconnected() signal; QWebSocket has no 'closed'
+-        self.ws.disconnected.connect(self._on_closed)
+-        self.ws.open(QUrl(url))
++        self.close()
++        # SPOT
++        if self.pairs_spot:
++            url_spot = "wss://stream.binance.com:9443/stream?streams=" + "/".join(
++                f"{p}@miniTicker" for p in self.pairs_spot
++            )
++            self.ws_spot = QWebSocket()
++            self.ws_spot.textMessageReceived.connect(lambda m: self._on_msg(m))
++            self.ws_spot.errorOccurred.connect(self._on_error)
++            self.ws_spot.disconnected.connect(self._on_closed)
++            self.ws_spot.open(QUrl(url_spot))
++        # FUTURES
++        if self.pairs_futures:
++            url_fut = "wss://fstream.binance.com:9443/stream?streams=" + "/".join(
++                f"{p}@miniTicker" for p in self.pairs_futures
++            )
++            self.ws_futures = QWebSocket()
++            self.ws_futures.textMessageReceived.connect(lambda m: self._on_msg(m))
++            self.ws_futures.errorOccurred.connect(self._on_error)
++            self.ws_futures.disconnected.connect(self._on_closed)
++            self.ws_futures.open(QUrl(url_fut))
+ 
+     def _reconnect(self):
+         self._open()
+@@ -292,7 +347,8 @@
+         # Window flags: borderless + always-on-top + translucent
+         self.setWindowFlags(
+             QtCore.Qt.FramelessWindowHint | QtCore.Qt.WindowStaysOnTopHint
+         )
+         self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+-        self.resize(240, 30)
++        # widen for ~8 labels
++        self.resize(420, 30)
+ 
+         # Drag state
+         self._drag_pos = None
+@@ -339,6 +395,9 @@
+         self.fetcher = CryptoDataFetcher()
+         self.worker: FetchThread | None = None
+         self.ws = PriceWS(self)
++        # Futures routing: pairs that must use Binance Futures stream
++        self._futures_pairs: Set[str] = set()
++        self._probe_timers: dict[str, QtCore.QTimer] = {}
+         self._price_signal_connected = False
+         self.last_ws_price: dict[str, float] = {}
+         self._audit_threshold = 0.005  # 0.5%
+@@ -700,22 +759,40 @@
+         return s + "usdt"
+ 
+     def _rebuild_pair_index(self):
+         self.pair_index = {}
+         for idx, slot in enumerate(self.slots):
+             p = self._slot_to_pair(slot)
+             if p:
+                 self.pair_index[p] = idx
+ 
++    # --- WS building / split SPOT vs FUTURES ---
+     def _start_ws(self):
+-        pairs_slots = [self._slot_to_pair(s) for s in self.slots]
+-        pairs_watch = [self._slot_to_pair(s) for s in self.alert_watchlist]
+-        pairs = [p for p in set([*(p for p in pairs_slots if p), *(p for p in pairs_watch if p)])]
+-        # Avoid duplicate connections; manage with a flag to skip noisy warnings
++        pairs_slots = [self._slot_to_pair(s) for s in self.slots]
++        pairs_watch = [self._slot_to_pair(s) for s in self.alert_watchlist]
++        all_pairs = [p for p in set([*(p for p in pairs_slots if p), *(p for p in pairs_watch if p)])]
++        spot_pairs = [p for p in all_pairs if p and p.lower() not in self._futures_pairs]
++        futures_pairs = [p for p in all_pairs if p and p.lower() in self._futures_pairs]
+         if self._price_signal_connected:
+             try:
+                 self.ws.price_update.disconnect(self._on_price_update)
+             except Exception:
+                 pass
+         self.ws.price_update.connect(self._on_price_update)
+         self._price_signal_connected = True
+-        self.ws.connect_pairs(pairs)
++        self.ws.connect_pairs(spot_pairs, futures_pairs)
++        # NOTE: we DO NOT auto probe here; probing happens only on edit_slot
+ 
+     def _restart_ws(self):
+         # Show placeholders while reconnecting
+         self._show_placeholders()
+         try:
+             self.ws.close()
+         except Exception:
+             pass
+         self._start_ws()
++
++    def _probe_pair_ws(self, pair: str, timeout_ms: int = 8000):
++        """After editing, wait briefly for SPOT; if none arrives, lock this pair to FUTURES."""
++        pl = (pair or "").lower()
++        # cancel previous probe
++        t = self._probe_timers.get(pl)
++        if t:
++            t.stop()
++            t.deleteLater()
++        timer = QtCore.QTimer(self)
++        timer.setSingleShot(True)
++        def on_timeout():
++            if pl not in self.last_ws_price:
++                self._futures_pairs.add(pl)
++                self._restart_ws()
++        timer.timeout.connect(on_timeout)
++        timer.start(int(timeout_ms))
++        self._probe_timers[pl] = timer
+@@ -739,7 +816,13 @@
+         self.slots[index] = new_id
+         self._save_config()
+         self._rebuild_pair_index()
+-        self._start_ws()
++        # Rebuild WS and probe ONLY the edited pair; if no spot stream, stick to futures for this pair.
++        self._start_ws()
++        p = self._slot_to_pair(new_id)
++        if p:
++            self._probe_pair_ws(p)
+ 
+     def _resolve_coin_id(self, text: str) -> str | None:
+         t = (text or "").strip().lower()
+         if not t:
+             return None
+@@ -846,25 +929,54 @@
+         self.audit_worker.data_ready.connect(self._on_http_audit_result)
+         self.audit_worker.start()
+ 
+     @QtCore.Slot(list)
+     def _on_http_audit_result(self, data: List[Dict]):
+         try:
+-            by_id = {c.get("id"): c for c in data if c and c.get("id")}
++            # Spot prices from CoinGecko (by id)
++            by_id = {c.get("id"): c for c in data if c and c.get("id")}
++            # Futures audit: build list of futures pairs we actually track
++            tracked_pairs = [self._slot_to_pair(s) for s in self.slots]
++            futures_to_check = sorted({p.lower() for p in tracked_pairs if p and p.lower() in self._futures_pairs})
++            fut_prices: Dict[str, float] = {}
++            if futures_to_check:
++                # Fetch HTTP prices from Binance Futures for those pairs
++                fut_prices = self.fetcher.fetch_binance_futures_prices(futures_to_check)
++
+             needs_restart = False
+             for cid in self.slots:
+                 pair = self._slot_to_pair(cid)
+                 if not pair:
+                     continue
+                 ws_price = self.last_ws_price.get(pair.lower())
+-                c = by_id.get(cid)
+-                http_price = None
+-                if c is not None:
+-                    http_price = c.get("current_price") or c.get("price")
++                http_price = None
++
++                # Decide audit source by whether this pair is futures-bound
++                if pair.lower() in self._futures_pairs:
++                    # Use Binance Futures REST
++                    http_price = fut_prices.get(pair.lower())
++                else:
++                    # Use CoinGecko spot by coin id
++                    c = by_id.get(cid)
++                    if c is not None:
++                        http_price = c.get("current_price") or c.get("price")
++
+                 if ws_price is None or not http_price:
+                     continue
+                 http_price = float(http_price)
+                 if http_price <= 0:
+                     continue
+                 diff = abs(ws_price - http_price) / http_price
+                 if diff >= self._audit_threshold:
+                     needs_restart = True
+                     break
+             if needs_restart:
+                 self._restart_ws()
+         except Exception:
+             pass

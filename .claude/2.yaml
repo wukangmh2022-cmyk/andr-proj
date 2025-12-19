@@ -1,0 +1,378 @@
+# 设计思路:
+# 1. 初始化计数器变量 cntveg 和 cntfruit。
+# 2. 显示背景、篮子和玩法说明文本。
+# 3. 创建6个物品图片（2蔬菜、2水果、2肉类），随机摆放并设置为可拖拽。
+# 4. 设置两个 persistent 的 CHECK_IN_AREA 区域（蔬菜篮和水果篮），用于实时监听拖拽释放事件。
+# 5. 在 CHECK_IN_AREA 的逻辑中，使用 last_drop_resource_ID 判断拖入的物品是否正确。
+#    - 如果正确：增加对应计数器（cntveg/cntfruit），缩小物品并禁用其拖拽。
+#    - 如果错误：将物品移回初始区域。
+# 6. 设置“提交”按钮的点击事件。
+# 7. 在点击事件中，判断 cntveg 和 cntfruit 是否都达到了目标数量（均为2）。
+#    - 如果是，则显示成功提示，并进入下一关。
+#    - 如果否，则显示失败提示。
+- id: init_cntveg
+  type: SET_VARIABLE
+  parameters:
+    key: cntveg
+    op: set
+    value: 0
+- id: init_cntfruit
+  type: SET_VARIABLE
+  parameters:
+    key: cntfruit
+    op: set
+    value: 0
+- id: init_victory_flag
+  type: SET_VARIABLE
+  parameters:
+    key: victory
+    op: set
+    value: false
+- id: show_background
+  type: SHOW_IMAGE
+  parameters:
+    elementId: background
+    resourceId: ____1
+    position:
+      x: 0
+      y: 0
+    size:
+      width: 800
+      height: 600
+    zIndex: 0
+- id: show_intro_text
+  type: SHOW_TEXT
+  parameters:
+    elementId: intro-text
+    text: 请将蔬菜和水果拖拽到对应的篮子中，完成后点击提交按钮。
+    position:
+      x: 200
+      y: 10
+    size:
+      width: 400
+      height: 60
+    style:
+      fontSize: "20px"
+      color: '#ffffff'
+      textAlign: center
+    blocking: true
+    skinId: _____9
+    padding: 20
+    dismissOnContinue: true
+    zIndex: 10
+- id: show_veg_basket
+  type: SHOW_IMAGE
+  parameters:
+    elementId: veg-basket
+    resourceId: __01_1
+    position:
+      x: 50
+      y: 416
+    size:
+      width: 273
+      height: 184
+    zIndex: 1
+    animation:
+      loop:
+        animId: _____2
+- id: show_fruit_basket
+  type: SHOW_IMAGE
+  parameters:
+    elementId: fruit-basket
+    resourceId: __02_1
+    position:
+      x: 470
+      y: 416
+    size:
+      width: 273
+      height: 184
+    zIndex: 1
+    animation:
+      loop:
+        animId: _____2
+- id: show_veg_1
+  type: SHOW_IMAGE
+  parameters:
+    elementId: veg_1
+    resourceId: _02
+    position:
+      x: 100
+      y: 100
+    size:
+      width: 120
+      height: 120
+    zIndex: 2
+    animation:
+      entry:
+        animId: ___3
+- id: set_drag_veg_1
+  type: SET_DRAGGABLE
+  parameters:
+    elementId: veg_1
+    draggable: true
+- id: show_fruit_1
+  type: SHOW_IMAGE
+  parameters:
+    elementId: fruit_1
+    resourceId: _09
+    position:
+      x: 340
+      y: 100
+    size:
+      width: 120
+      height: 120
+    zIndex: 2
+    animation:
+      entry:
+        animId: ___3
+- id: set_drag_fruit_1
+  type: SET_DRAGGABLE
+  parameters:
+    elementId: fruit_1
+    draggable: true
+- id: show_meat_1
+  type: SHOW_IMAGE
+  parameters:
+    elementId: meat_1
+    resourceId: _01
+    position:
+      x: 580
+      y: 100
+    size:
+      width: 120
+      height: 120
+    zIndex: 2
+    animation:
+      entry:
+        animId: ___3
+- id: set_drag_meat_1
+  type: SET_DRAGGABLE
+  parameters:
+    elementId: meat_1
+    draggable: true
+- id: show_veg_2
+  type: SHOW_IMAGE
+  parameters:
+    elementId: veg_2
+    resourceId: _05
+    position:
+      x: 100
+      y: 250
+    size:
+      width: 120
+      height: 120
+    zIndex: 2
+    animation:
+      entry:
+        animId: ___3
+- id: set_drag_veg_2
+  type: SET_DRAGGABLE
+  parameters:
+    elementId: veg_2
+    draggable: true
+- id: show_fruit_2
+  type: SHOW_IMAGE
+  parameters:
+    elementId: fruit_2
+    resourceId: _12
+    position:
+      x: 340
+      y: 250
+    size:
+      width: 120
+      height: 120
+    zIndex: 2
+    animation:
+      entry:
+        animId: ___3
+- id: set_drag_fruit_2
+  type: SET_DRAGGABLE
+  parameters:
+    elementId: fruit_2
+    draggable: true
+- id: show_meat_2
+  type: SHOW_IMAGE
+  parameters:
+    elementId: meat_2
+    resourceId: _07
+    position:
+      x: 580
+      y: 250
+    size:
+      width: 120
+      height: 120
+    zIndex: 2
+    animation:
+      entry:
+        animId: ___3
+- id: set_drag_meat_2
+  type: SET_DRAGGABLE
+  parameters:
+    elementId: meat_2
+    draggable: true
+- id: show_submit_button
+  type: SHOW_IMAGE
+  parameters:
+    elementId: submit-btn
+    resourceId: _______1
+    position:
+      x: 325
+      y: 530
+    size:
+      width: 150
+      height: 50
+    zIndex: 3
+    animation:
+      entry:
+        animId: _____3
+- id: listen_veg_area
+  type: CHECK_IN_AREA
+  parameters:
+    area:
+      x: 50
+      y: 416
+      width: 273
+      height: 184
+    commands:
+    - id: veg_basket_check
+      type: IF_CONDITION
+      parameters:
+        condition:
+          type: expression
+          expression: "['_02', '_05'].includes(context.stateManager.getVariable('last_drop_resource_ID'))"
+        trueCommands:
+        - id: inc_cntveg
+          type: SET_VARIABLE
+          parameters:
+            key: cntveg
+            op: add
+            value: 1
+        - id: disable_drag_correct_veg
+          type: SET_DRAGGABLE
+          parameters:
+            elementId: "{last_drop_element_ID}"
+            draggable: false
+        falseCommands:
+        - id: move_back_wrong_veg
+          type: MOVE_TO
+          parameters:
+            elementId: "{last_drop_element_ID}"
+            x: 340
+            y: 180
+            duration: 200
+- id: listen_fruit_area
+  type: CHECK_IN_AREA
+  parameters:
+    area:
+      x: 470
+      y: 416
+      width: 273
+      height: 184
+    commands:
+    - id: fruit_basket_check
+      type: IF_CONDITION
+      parameters:
+        condition:
+          type: expression
+          expression: "['_09', '_12'].includes(context.stateManager.getVariable('last_drop_resource_ID'))"
+        trueCommands:
+        - id: inc_cntfruit
+          type: SET_VARIABLE
+          parameters:
+            key: cntfruit
+            op: add
+            value: 1
+        - id: disable_drag_correct_fruit
+          type: SET_DRAGGABLE
+          parameters:
+            elementId: "{last_drop_element_ID}"
+            draggable: false
+        falseCommands:
+        - id: move_back_wrong_fruit
+          type: MOVE_TO
+          parameters:
+            elementId: "{last_drop_element_ID}"
+            x: 340
+            y: 180
+            duration: 200
+- id: set_submit_clickable
+  type: SET_CLICKABLE
+  parameters:
+    elementId: submit-btn
+    clickable: true
+    onClick: commands
+    commands:
+    - id: check_veg_count
+      type: IF_CONDITION
+      parameters:
+        condition:
+          type: variable
+          key: cntveg
+          operator: eq
+          value: 2
+        trueCommands:
+        - id: check_fruit_count
+          type: IF_CONDITION
+          parameters:
+            condition:
+              type: variable
+              key: cntfruit
+              operator: eq
+              value: 2
+            trueCommands:
+            - id: set_victory_true
+              type: SET_VARIABLE
+              parameters:
+                key: victory
+                op: set
+                value: true
+            - id: show_success_text
+              type: SHOW_TEXT
+              parameters:
+                elementId: success-text
+                text: 分类正确！
+                position:
+                  x: 300
+                  y: 250
+                style:
+                  fontSize: "28px"
+                  color: '#00FF00'
+                blocking: true
+                dismissOnContinue: true
+                skinId: btn-org
+                padding: 20
+            - id: go_to_next_level
+              type: NEXT_LEVEL
+              parameters: {}
+            falseCommands:
+            - id: show_fail_text_inner
+              type: SHOW_TEXT
+              parameters:
+                elementId: fail-text
+                text: 分类错误，请重试。
+                position:
+                  x: 300
+                  y: 250
+                style:
+                  fontSize: "28px"
+                  color: '#FF0000'
+                blocking: true
+                dismissOnContinue: true
+                skinId: btn-org
+                padding: 20
+        falseCommands:
+        - id: show_fail_text_outer
+          type: SHOW_TEXT
+          parameters:
+            elementId: fail-text
+            text: 分类错误，请重试。
+            position:
+              x: 300
+              y: 250
+            style:
+              fontSize: "28px"
+              color: '#FF0000'
+            blocking: true
+            dismissOnContinue: true
+            skinId: btn-org
+            padding: 20

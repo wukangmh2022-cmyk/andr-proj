@@ -1,0 +1,628 @@
+[
+  {
+    "id": "init_cntveg",
+    "type": "SET_VARIABLE",
+    "parameters": {
+      "key": "cntveg",
+      "op": "set",
+      "value": 0
+    }
+  },
+  {
+    "id": "init_cntfruit",
+    "type": "SET_VARIABLE",
+    "parameters": {
+      "key": "cntfruit",
+      "op": "set",
+      "value": 0
+    }
+  },
+  {
+    "id": "set_variable_2",
+    "type": "SET_VARIABLE",
+    "parameters": {
+      "key": "victory",
+      "op": "set",
+      "value": false
+    }
+  },
+  {
+    "id": "cmd_mfuv240j_gg42_1_h0nb",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "background",
+      "resourceId": "____1",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 800,
+        "height": 600
+      },
+      "zIndex": 0,
+      "animation": {
+        "entry": {
+          "animId": "___4"
+        },
+        "loop": {
+          "animId": ""
+        }
+      },
+      "parentId": "",
+      "align": "",
+      "visible": true,
+      "id": "cmd_mfuv240j_gg42_1_h0nb"
+    }
+  },
+  {
+    "id": "cmd_mfvul71f_xkqs_0_nv23",
+    "type": "SHOW_TEXT",
+    "parameters": {
+      "elementId": "story-text",
+      "text": "请将蔬菜拖拽到对应的蔬菜篮中，\n完成后点击提交按钮。",
+      "position": {
+        "x": 200,
+        "y": 300
+      },
+      "style": {
+        "fontSize": 20,
+        "color": "#ffffff",
+        "fontFamily": "Arial, Helvetica, sans-serif",
+        "stroke": "#1e3a8a",
+        "strokeThickness": 3,
+        "dropShadow": true,
+        "dropShadowColor": "#000000",
+        "dropShadowBlur": 2,
+        "dropShadowAngle": 1.2,
+        "dropShadowDistance": 2,
+        "lineHeight": 28,
+        "zIndex": 12,
+        "maxWidth": 999,
+        "textAlign": "center"
+      },
+      "blocking": true,
+      "skinId": "btn-primary-9slice",
+      "padding": 14,
+      "dismissOnContinue": true,
+      "id": "cmd_mfvul71f_xkqs_0_nv23"
+    }
+  },
+  {
+    "id": "emit_signal_1",
+    "type": "EMIT_SIGNAL",
+    "parameters": {
+      "signal": "start",
+      "data": ""
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_0_e1h1",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "veg1",
+      "resourceId": "_12",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "size": {
+        "width": 139,
+        "height": 142
+      },
+      "zIndex": 2,
+      "animation": {
+        "entry": {
+          "animId": "___3"
+        },
+        "loop": {
+          "animId": ""
+        }
+      },
+      "visible": true,
+      "parentId": "",
+      "align": "",
+      "id": "cmd_mfvtmst5_95xu_0_i7ja"
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_1_39nb",
+    "type": "SET_DRAGGABLE",
+    "parameters": {
+      "elementId": "veg1",
+      "draggable": true
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_2_c4uh",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "veg2",
+      "resourceId": "_08",
+      "position": {
+        "x": 259,
+        "y": 100
+      },
+      "size": {
+        "width": 122,
+        "height": 122
+      },
+      "zIndex": 2,
+      "animation": {
+        "entry": {
+          "animId": "___3"
+        },
+        "loop": {
+          "animId": ""
+        }
+      },
+      "visible": true,
+      "parentId": "",
+      "align": "",
+      "id": "cmd_mfvtmst5_95xu_2_tyji"
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_3_czxz",
+    "type": "SET_DRAGGABLE",
+    "parameters": {
+      "elementId": "veg2",
+      "draggable": true
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_4_ipba",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "veg3",
+      "resourceId": "_09",
+      "position": {
+        "x": 401,
+        "y": 100
+      },
+      "size": {
+        "width": "",
+        "height": ""
+      },
+      "zIndex": 2,
+      "animation": {
+        "entry": {
+          "animId": "___3"
+        },
+        "loop": {
+          "animId": ""
+        }
+      },
+      "visible": true,
+      "parentId": "",
+      "align": "",
+      "id": "cmd_mfvtmst5_95xu_4_o6bt"
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_5_fcp7",
+    "type": "SET_DRAGGABLE",
+    "parameters": {
+      "elementId": "veg3",
+      "draggable": true
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_6_rpu3",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "veg4",
+      "resourceId": "_06",
+      "position": {
+        "x": 617,
+        "y": 100
+      },
+      "size": {
+        "width": "",
+        "height": ""
+      },
+      "zIndex": 2,
+      "animation": {
+        "entry": {
+          "animId": "___3"
+        },
+        "loop": {
+          "animId": ""
+        }
+      },
+      "visible": true,
+      "parentId": "",
+      "align": "",
+      "id": "cmd_mfvtmst5_95xu_6_mvam"
+    }
+  },
+  {
+    "id": "cmd_mfxcim4r_qjij_7_w9qb",
+    "type": "SET_DRAGGABLE",
+    "parameters": {
+      "elementId": "veg4",
+      "draggable": true
+    }
+  },
+  {
+    "id": "cmd_mfuv240j_gg42_3_v2py",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "veg-basket",
+      "resourceId": "__01_1",
+      "position": {
+        "x": 50,
+        "y": 416
+      },
+      "size": {
+        "width": 273,
+        "height": 184
+      },
+      "zIndex": 1,
+      "animation": {
+        "entry": {
+          "animId": "___4"
+        },
+        "loop": {
+          "animId": "_____2"
+        }
+      },
+      "parentId": "",
+      "align": "",
+      "visible": true,
+      "id": "cmd_mfuv240j_gg42_3_v2py"
+    }
+  },
+  {
+    "id": "cmd_mfuv240j_gg42_4_d5gd",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "fruit-basket",
+      "resourceId": "__02_1",
+      "position": {
+        "x": 518,
+        "y": 371
+      },
+      "size": {
+        "width": 232,
+        "height": 229
+      },
+      "zIndex": 1,
+      "animation": {
+        "entry": {
+          "animId": "___4"
+        },
+        "loop": {
+          "animId": "_____2"
+        }
+      },
+      "parentId": "",
+      "align": "",
+      "visible": true,
+      "id": "cmd_mfuv240j_gg42_4_d5gd"
+    }
+  },
+  {
+    "id": "cmd_mfvubiop_mdi9_0_ehc5",
+    "type": "SHOW_IMAGE",
+    "parameters": {
+      "elementId": "submit-btn",
+      "resourceId": "_____8",
+      "position": {
+        "x": 300,
+        "y": 500
+      },
+      "size": {
+        "width": 170,
+        "height": 40
+      },
+      "zIndex": 3,
+      "animation": {
+        "entry": {
+          "animId": "_____3"
+        },
+        "loop": {
+          "animId": ""
+        }
+      },
+      "visible": true,
+      "parentId": "",
+      "align": "",
+      "id": "cmd_mfuv240j_gg42_13_3smw"
+    }
+  },
+  {
+    "id": "cmd_mfuv240j_gg42_15_kveg",
+    "type": "CHECK_IN_AREA",
+    "parameters": {
+      "area": {
+        "x": 100,
+        "y": 416,
+        "width": 210,
+        "height": 100
+      },
+      "commands": [
+        {
+          "id": "veg_basket_check",
+          "type": "IF_CONDITION",
+          "parameters": {
+            "condition": {
+              "type": "expression",
+              "expression": "context.stateManager.getVariable('last_drop_element_ID').includes('veg')"
+            },
+            "trueCommands": [
+              {
+                "id": "shrink_accepted_veg",
+                "type": "SET_ELEMENT_STYLE",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "style": {
+                    "scale": 0.6
+                  }
+                }
+              },
+              {
+                "id": "disable_drag_accepted_veg",
+                "type": "SET_DRAGGABLE",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "draggable": false
+                }
+              },
+              {
+                "id": "inc_cntveg",
+                "type": "SET_VARIABLE",
+                "parameters": {
+                  "key": "cntveg",
+                  "op": "add",
+                  "value": 1
+                }
+              },
+              {
+                "id": "move_to_1",
+                "type": "MOVE_TO",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "x": -1,
+                  "y": 420,
+                  "duration": 100,
+                  "keepOnMinusOne": true
+                }
+              }
+            ],
+            "falseCommands": [
+              {
+                "id": "cmd_mfxckg1r_nwsj_0_9ymm",
+                "type": "MOVE_TO",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "x": 400,
+                  "y": 130,
+                  "duration": 200,
+                  "keepOnMinusOne": true
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "cmd_mfuv240j_gg42_16_kfru",
+    "type": "CHECK_IN_AREA",
+    "parameters": {
+      "area": {
+        "x": 518,
+        "y": 371,
+        "width": 232,
+        "height": 229
+      },
+      "commands": [
+        {
+          "id": "fruit_basket_check",
+          "type": "IF_CONDITION",
+          "parameters": {
+            "condition": {
+              "type": "expression",
+              "expression": "context.stateManager.getVariable('last_drop_element_ID').includes('fruit')"
+            },
+            "trueCommands": [
+              {
+                "id": "shrink_accepted_fruit",
+                "type": "SET_ELEMENT_STYLE",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "style": {
+                    "scale": 0.6
+                  }
+                }
+              },
+              {
+                "id": "disable_drag_accepted_fruit",
+                "type": "SET_DRAGGABLE",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "draggable": false
+                }
+              },
+              {
+                "id": "inc_cntfruit",
+                "type": "SET_VARIABLE",
+                "parameters": {
+                  "key": "cntfruit",
+                  "op": "add",
+                  "value": 1
+                }
+              }
+            ],
+            "falseCommands": [
+              {
+                "id": "move_to_2",
+                "type": "MOVE_TO",
+                "parameters": {
+                  "elementId": "{last_drop_element_ID}",
+                  "x": 400,
+                  "y": 130,
+                  "duration": 200,
+                  "keepOnMinusOne": true
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "cmd_mfuv240j_gg42_14_p2m1",
+    "type": "SET_CLICKABLE",
+    "parameters": {
+      "elementId": "submit-btn",
+      "clickable": true,
+      "onClick": "commands",
+      "backResourceId": "",
+      "frontResourceId": "",
+      "showBack": true,
+      "effect": "",
+      "commands": [
+        {
+          "id": "cmd_mfuv240j_gg42_0_028p",
+          "type": "IF_CONDITION",
+          "parameters": {
+            "condition": {
+              "type": "variable",
+              "key": "cntveg",
+              "operator": "eq",
+              "value": 4,
+              "expression": ""
+            },
+            "trueCommands": [
+              {
+                "id": "cmd_mfv5o7gj_itk7_0_otzz",
+                "type": "IF_CONDITION",
+                "parameters": {
+                  "condition": {
+                    "type": "variable",
+                    "key": "cntfruit",
+                    "operator": "eq",
+                    "value": 0,
+                    "expression": ""
+                  },
+                  "trueCommands": [
+                    {
+                      "id": "set_variable_1",
+                      "type": "SET_VARIABLE",
+                      "parameters": {
+                        "key": "victory",
+                        "op": "set",
+                        "value": true
+                      }
+                    },
+                    {
+                      "id": "cmd_mfv5o7gj_itk7_0_drwx",
+                      "type": "SHOW_TEXT",
+                      "parameters": {
+                        "elementId": "success-text",
+                        "text": "分类正确！",
+                        "position": {
+                          "x": 300,
+                          "y": 200
+                        },
+                        "style": {
+                          "fontSize": 28,
+                          "color": "#00FF00",
+                          "stroke": "",
+                          "strokeThickness": 0,
+                          "dropShadow": false,
+                          "dropShadowColor": "#000000",
+                          "dropShadowBlur": 0,
+                          "dropShadowAngle": 1.2,
+                          "dropShadowDistance": 2,
+                          "maxWidth": 999,
+                          "textAlign": "left"
+                        },
+                        "blocking": true,
+                        "dismissOnContinue": true,
+                        "padding": 20,
+                        "skinId": "dialog-default-9slice",
+                        "id": "cmd_mfv5o7gj_itk7_0_drwx"
+                      }
+                    },
+                    {
+                      "id": "cmd_mfv5o7gj_itk7_1_7t5d",
+                      "type": "NEXT_LEVEL",
+                      "parameters": {}
+                    }
+                  ],
+                  "falseCommands": [
+                    {
+                      "id": "cmd_mfv5o7gj_itk7_0_rw1v",
+                      "type": "SHOW_TEXT",
+                      "parameters": {
+                        "elementId": "fail-text",
+                        "text": "分类错误，请重试。",
+                        "position": {
+                          "x": 300,
+                          "y": 200
+                        },
+                        "style": {
+                          "fontSize": 28,
+                          "color": "#FF0000",
+                          "stroke": "",
+                          "strokeThickness": 0,
+                          "dropShadow": false,
+                          "dropShadowColor": "#000000",
+                          "dropShadowBlur": 0,
+                          "dropShadowAngle": 1.2,
+                          "dropShadowDistance": 2,
+                          "maxWidth": 999,
+                          "textAlign": "left"
+                        },
+                        "blocking": true,
+                        "dismissOnContinue": true,
+                        "padding": 20,
+                        "skinId": ""
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "falseCommands": [
+              {
+                "id": "cmd_mfuv240j_gg42_0_4v9x",
+                "type": "SHOW_TEXT",
+                "parameters": {
+                  "elementId": "fail-text",
+                  "text": "分类错误，请重试。",
+                  "position": {
+                    "x": 300,
+                    "y": 200
+                  },
+                  "style": {
+                    "fontSize": 28,
+                    "color": "#FF0000",
+                    "stroke": "",
+                    "strokeThickness": 0,
+                    "dropShadow": false,
+                    "dropShadowColor": "#000000",
+                    "dropShadowBlur": 0,
+                    "dropShadowAngle": 1.2,
+                    "dropShadowDistance": 2,
+                    "maxWidth": 999,
+                    "textAlign": "left"
+                  },
+                  "blocking": true,
+                  "dismissOnContinue": true,
+                  "padding": 20,
+                  "skinId": ""
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+]

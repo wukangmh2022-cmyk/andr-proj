@@ -460,7 +460,7 @@ class ThumbnailPopup(QtWidgets.QWidget):
                 # layout similar to renderer
                 dual_active = (getattr(self._owner_ref, 'thumb_dual_enabled', False) and bool(self._ohlc2) and getattr(self, '_mode', 'main') == 'main')
                 ind = getattr(self._owner_ref, 'thumb_sub_indicator', 'none') if getattr(self, '_mode', 'main') == 'main' else getattr(self._owner_ref, 'thumb_dual_sub_indicator', 'none')
-                sub_enabled = str(ind).lower() in ("rsi", "macd", "kdj")
+                sub_enabled = str(ind).lower() in ("rsi", "macd", "kdj", "vol")
                 avail_h = H - 2 * pad
                 if dual_active and sub_enabled:
                     top_h = int(avail_h * 0.38)
@@ -475,6 +475,14 @@ class ThumbnailPopup(QtWidgets.QWidget):
                     main_top, main_bottom = pad, pad + int(avail_h * 0.62)
                 else:
                     main_top, main_bottom = pad, H - pad
+                # Shift main popup chart down by 30px; dual popup unchanged
+                try:
+                    if getattr(self, '_mode', 'main') == 'main':
+                        shift_px = 30
+                        if (main_bottom - (main_top + shift_px)) >= 10:
+                            main_top += shift_px
+                except Exception:
+                    pass
                 height = max(1, main_bottom - main_top)
                 y = int(max(main_top, min(main_bottom - 1, self._hover_y)))
                 # invert mapping
@@ -526,7 +534,7 @@ class ThumbnailPopup(QtWidgets.QWidget):
             # Sub indicator below timeframe, left-aligned: e.g., "< RSI >"
             sub_mode = getattr(self, '_mode', 'main')
             sub_name = (getattr(self._owner_ref, 'thumb_sub_indicator', 'none') if sub_mode == 'main' else getattr(self._owner_ref, 'thumb_dual_sub_indicator', 'none'))
-            opts = ['rsi','macd','kdj']
+            opts = ['rsi','macd','kdj','vol']
             if sub_name not in opts:
                 sub_name = opts[0]
             y2 = y_base + fm.height() + 2
@@ -934,6 +942,10 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         self.thumb_dual_sub_indicator: str = cfg.get("thumb_dual_sub_indicator", "none")
         self._thumb_cache: dict[str, tuple[float, list[tuple[float, float, float, float]]]] = {}
         self._thumb_lines: dict[str, dict[str, list[tuple[float, float, float, float]]]] = {}
+        # Volume caches for sub-indicator 'vol'
+        self._thumb_vol_cache: dict[str, tuple[float, list[float]]] = {}
+        self._thumb_vol_main: list[float] | None = None
+        self._thumb_vol_top: list[float] | None = None
         raw_thumb_lines = cfg.get("thumb_lines")
         if isinstance(raw_thumb_lines, dict):
             for tpl_pair, tf_map in raw_thumb_lines.items():
@@ -987,7 +999,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         self._scale_max = 2.0
         self._scale_step = 0.1
         # Base metrics
-        self._base_font_px = 11
+        self._base_font_px = int(cfg.get("base_font_px", 11))
         self._base_margins = (6, 4, 6, 4)
         self._base_spacing = 6
         self._base_btn = 18
@@ -1198,10 +1210,14 @@ class CryptoWidgetQt(QtWidgets.QWidget):
     def _apply_style(self):
         # Apply scaled layout metrics
         try:
+            # Only enlarge spacing for sizes larger than Normal (13px)
+            bf = int(getattr(self, '_base_font_px', 11))
+            font_scale = 1.0 if bf <= 13 else float(bf) / 13.0
             l, t, r, b = self._base_margins
             self.root_layout.setContentsMargins(self._s(l), self._s(t), self._s(r), self._s(b))
-            self.root_layout.setSpacing(self._s(self._base_spacing))
-            self.prices_layout.setSpacing(self._s(self._base_spacing))
+            spacing_px = max(0, int(round(self._s(self._base_spacing) * font_scale)))
+            self.root_layout.setSpacing(spacing_px)
+            self.prices_layout.setSpacing(spacing_px)
         except Exception:
             pass
 
@@ -1213,12 +1229,14 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             pass
         for lbl in getattr(self, 'labels', []):
             try:
-                lbl.setMinimumWidth(self._s(self._base_label_minw))
+                bf = int(getattr(self, '_base_font_px', 11))
+                mw_scale = 1.0 if bf <= 13 else float(bf) / 13.0
+                lbl.setMinimumWidth(max(24, int(round(self._s(self._base_label_minw) * mw_scale))))
             except Exception:
                 pass
 
         # Stylesheet with scaled font/border radius/border width
-        font_px = max(6, self._s(self._base_font_px))
+        font_px = max(6, int(round(self._s(self._base_font_px))))
         radius = max(2, self._s(self._base_border_radius))
         border_w = max(1, self._s(self._base_border_width))
         btn_radius = max(3, int(radius * 0.6))
@@ -1306,6 +1324,30 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         sub_price.addAction(act_src_spot)
         sub_price.addAction(act_src_fut)
         menu.addMenu(sub_price)
+        # Font size submenu (four presets)
+        sub_font = QtWidgets.QMenu("Font Size", menu)
+        grp_font = QtGui.QActionGroup(sub_font)
+        grp_font.setExclusive(True)
+        # Presets: Small(11, old default), Normal(13), Large(15), X-Large(18)
+        act_fs_s = QtGui.QAction("Small", sub_font); act_fs_s.setCheckable(True)
+        act_fs_n = QtGui.QAction("Normal", sub_font); act_fs_n.setCheckable(True)
+        act_fs_l = QtGui.QAction("Large", sub_font); act_fs_l.setCheckable(True)
+        act_fs_x = QtGui.QAction("X-Large", sub_font); act_fs_x.setCheckable(True)
+        for a in (act_fs_s, act_fs_n, act_fs_l, act_fs_x):
+            grp_font.addAction(a)
+            sub_font.addAction(a)
+        cur_base = int(getattr(self, '_base_font_px', 11))
+        # Choose nearest preset to current value
+        preset_map = {
+            act_fs_s: 11,
+            act_fs_n: 13,
+            act_fs_l: 15,
+            act_fs_x: 18,
+        }
+        nearest = min(preset_map.items(), key=lambda kv: abs(cur_base - kv[1]))[0]
+        nearest.setChecked(True)
+        menu.addMenu(sub_font)
+
         act_alerts = menu.addAction("Alerts Settings…")
         act_announcer = menu.addAction("Announcer Settings…")
         act_ui = menu.addAction("UI Settings…")
@@ -1325,6 +1367,27 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             self.prefer_price_source = 'futures'
             self._save_config()
             self._restart_ws()
+        elif chosen in (act_fs_s, act_fs_n, act_fs_l, act_fs_x):
+            # Apply chosen preset
+            if chosen is act_fs_s:
+                new_px = 11
+            elif chosen is act_fs_n:
+                new_px = 13
+            elif chosen is act_fs_l:
+                new_px = 15
+            else:
+                new_px = 18
+            self._base_font_px = int(new_px)
+            self._apply_style()
+            # width may need expansion if text grows
+            try:
+                need_w = self._calc_min_width()
+                if self.width() < need_w and not self._collapsed:
+                    self._lock_to_width(need_w)
+                    self.resize(need_w, self.height())
+            except Exception:
+                pass
+            self._save_config()
         elif chosen.text() == "Alerts Settings…":
             self._open_alerts_settings()
         elif chosen.text() == "Announcer Settings…":
@@ -1397,6 +1460,12 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             per_label = (self.labels[0].minimumWidth() if self.labels else self._s(self._base_label_minw)) + self.prices_layout.spacing()
             count = len(self.slots)
             base = left + btn_w + right + (count * per_label)
+            # If using the largest preset, widen overall by ~15%
+            try:
+                if int(getattr(self, '_base_font_px', 11)) >= 18:
+                    base = int(round(base * 1.15))
+            except Exception:
+                pass
             return max(180, base)
         except Exception:
             return 240
@@ -1478,14 +1547,24 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             except Exception:
                 return []
             out: list[tuple[float, float, float, float]] = []
+            vols: list[float] = []
             for k in arr:
                 # k: [openTime, open, high, low, close, ...]
                 try:
                     o = float(k[1]); h = float(k[2]); l = float(k[3]); c = float(k[4])
                     out.append((o, h, l, c))
+                    try:
+                        v = float(k[5])
+                        vols.append(max(0.0, v))
+                    except Exception:
+                        vols.append(0.0)
                 except Exception:
                     continue
             self._thumb_cache[key] = (now, out)
+            try:
+                self._thumb_vol_cache[key] = (now, vols)
+            except Exception:
+                pass
             return out
         except Exception:
             return []
@@ -1535,7 +1614,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             left, right = pad, W - pad - gutter
             dual = bool(self.thumb_dual_enabled)
             dual_active = bool(dual and ohlc2)
-            sub_enabled = (self.thumb_sub_indicator in ("rsi", "macd", "kdj"))
+            sub_enabled = (self.thumb_sub_indicator in ("rsi", "macd", "kdj", "vol"))
             avail_h = H - 2 * pad
             if dual_active and sub_enabled:
                 top_h = int(avail_h * 0.38)
@@ -1558,6 +1637,13 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                 main_top, main_bottom = pad, H - pad
                 sub_top, sub_bottom = None, None
                 top_top, top_bot = None, None
+            # Shift main K chart down by 30px (dual popup rendered separately, unchanged)
+            try:
+                shift_px = 30
+                if main_bottom - (main_top + shift_px) >= 10:
+                    main_top += shift_px
+            except Exception:
+                pass
             width = right - left
             height = main_bottom - main_top
             n = len(ohlc)
@@ -1895,9 +1981,23 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                         p.drawLine(x, y0, x, yh)
                     self._draw_line_series(p, macd, left, cw, sub_top, sub_bottom, -mx, mx, QtGui.QColor(173, 216, 230))
                     self._draw_line_series(p, signal, left, cw, sub_top, sub_bottom, -mx, mx, QtGui.QColor(255, 215, 0))
+                elif self.thumb_sub_indicator == "vol":
+                    # Volume histogram for main panel
+                    vols = list(self._thumb_vol_main or [])
+                    if not vols or len(vols) != len(ohlc):
+                        vols = [max(1e-9, h - l) for (o, h, l, c) in ohlc]
+                    vmaxv = max(1e-9, max(vols))
+                    for i, (o, h, l, c) in enumerate(ohlc):
+                        v = vols[i] if i < len(vols) else 0.0
+                        x = int(left + i * cw + cw / 2)
+                        y0 = int(sub_bottom - 1)
+                        yh = int(sub_top + (1.0 - min(1.0, v / vmaxv)) * (sub_bottom - sub_top))
+                        col = QtGui.QColor(0, 200, 0) if c >= o else QtGui.QColor(220, 0, 0)
+                        p.setPen(QtGui.QPen(col, max(1, int(bw * 0.6))))
+                        p.drawLine(x, y0, x, yh)
 
             # Top sub-indicator (dual)
-            if dual and top_top is not None and ohlc2 and (self.thumb_dual_sub_indicator in ("rsi","macd","kdj")):
+            if dual and top_top is not None and ohlc2 and (self.thumb_dual_sub_indicator in ("rsi","macd","kdj","vol")):
                 sub2_top = top_bot + 2
                 sub2_bottom = min(H - pad, sub2_top + max(10, int((main_bottom - main_top) * 0.45)))
                 if sub2_bottom - sub2_top > 10:
@@ -1985,6 +2085,19 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                             p.drawLine(x, y0, x, yh)
                         self._draw_line_series(p, m2, left, cw2, sub2_top, sub2_bottom, -mx2, mx2, QtGui.QColor(173, 216, 230))
                         self._draw_line_series(p, s2, left, cw2, sub2_top, sub2_bottom, -mx2, mx2, QtGui.QColor(255, 215, 0))
+                    elif self.thumb_dual_sub_indicator == 'vol':
+                        vols2 = list(self._thumb_vol_top or [])
+                        if not vols2 or len(vols2) != len(ohlc2):
+                            vols2 = [max(1e-9, h - l) for (o, h, l, c) in ohlc2]
+                        vmaxv2 = max(1e-9, max(vols2))
+                        for i, (o2, h2_, l2_, c2) in enumerate(ohlc2):
+                            v = vols2[i] if i < len(vols2) else 0.0
+                            x = int(left + i * cw2 + cw2 / 2)
+                            y0 = int(sub2_bottom - 1)
+                            yh = int(sub2_top + (1.0 - min(1.0, v / vmaxv2)) * (sub2_bottom - sub2_top))
+                            col = QtGui.QColor(0, 200, 0) if c2 >= o2 else QtGui.QColor(220, 0, 0)
+                            p.setPen(QtGui.QPen(col, max(1, int(bw * 0.6))))
+                            p.drawLine(x, y0, x, yh)
         finally:
             p.end()
         return pm
@@ -2138,10 +2251,18 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         except Exception:
             pass
         self._thumb_ohlc_main = ohlc
+        try:
+            self._thumb_vol_main = [max(1e-9, h - l) for (o, h, l, c) in (ohlc or [])]
+        except Exception:
+            self._thumb_vol_main = None
         # Dual popup always shows fixed 4h preview (no extra config)
         bars2 = int(max(10, min(200, int(self.thumb_bars2 or bars))))
         ohlc2 = self._ohlc_from_local(pair_l, bars2, tf=(self.thumb_tf2 or "4h"))
         self._thumb_ohlc_top = ohlc2
+        try:
+            self._thumb_vol_top = [max(1e-9, h - l) for (o, h, l, c) in (ohlc2 or [])]
+        except Exception:
+            self._thumb_vol_top = None
         if ohlc:
             self._thumb_popup.set_data_and_owner(ohlc, self, ohlc2=None, tf_label=(self.thumb_tf or ""))
         pos = (click_pos if click_pos is not None else QtGui.QCursor.pos()) + QtCore.QPoint(12, 12)
@@ -2211,10 +2332,25 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             if tf == (self.thumb_tf or "1h"):
                 self._thumb_ohlc_main = ohlc
                 self._thumb_popup.set_data_and_owner(self._thumb_ohlc_main or [], self, ohlc2=None)
+                # attach volumes from cache if available
+                try:
+                    key = f"{pair_l}:{tf}:{int(self.thumb_bars or 50)}"
+                    vc = self._thumb_vol_cache.get(key)
+                    if vc and vc[1]:
+                        self._thumb_vol_main = list(vc[1])
+                except Exception:
+                    pass
             # Use a separate check (not elif) so if tf == tf2, both popups update
             if tf == (self.thumb_tf2 or "4h"):
                 self._thumb_ohlc_top = ohlc
                 self._dual_popup.set_data_and_owner(self._thumb_ohlc_top or [], self)
+                try:
+                    key2 = f"{pair_l}:{tf}:{int(self.thumb_bars2 or self.thumb_bars or 50)}"
+                    vc2 = self._thumb_vol_cache.get(key2)
+                    if vc2 and vc2[1]:
+                        self._thumb_vol_top = list(vc2[1])
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -2287,9 +2423,9 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             if owner is not None:
                 if mode == 'main':
                     dual_active = bool(getattr(owner, 'thumb_dual_enabled', False) and bool(getattr(popup, '_ohlc2', None)))
-                    sub_enabled = str(getattr(owner, 'thumb_sub_indicator', 'none')).lower() in ("rsi","macd","kdj")
+                    sub_enabled = str(getattr(owner, 'thumb_sub_indicator', 'none')).lower() in ("rsi","macd","kdj","vol")
                 else:
-                    sub_enabled = str(getattr(owner, 'thumb_dual_sub_indicator', 'none')).lower() in ("rsi","macd","kdj")
+                    sub_enabled = str(getattr(owner, 'thumb_dual_sub_indicator', 'none')).lower() in ("rsi","macd","kdj","vol")
         except Exception:
             pass
         avail_h = H - 2 * pad
@@ -2306,7 +2442,16 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             main_top, main_bottom = pad, pad + int(avail_h * 0.62)
         else:
             main_top, main_bottom = pad, H - pad
+        # Apply a 30px downward shift for the main popup only
+        try:
+            if mode == 'main':
+                shift_px = 30
+                if (main_bottom - (main_top + shift_px)) >= 10:
+                    main_top += shift_px
+        except Exception:
+            pass
         return left, right, main_top, main_bottom, float(v_min), float(v_max)
+        
 
     def _popup_tf_seconds(self, popup: 'ThumbnailPopup') -> int:
         # Determine timeframe seconds for this popup's mode
@@ -2514,16 +2659,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         pair, tf = self._thumb_context(mode=mode)
         if not pair or not tf:
             return
-        # First draw lines from other timeframes (fainter), then current timeframe lines (with selection highlight)
-        other_px = self._thumb_line_pixels_other_timeframes(pair, tf, popup)
-        if other_px:
-            for (x1, y1, x2, y2) in other_px:
-                pen_o = QtGui.QPen(QtGui.QColor(135, 206, 235, 130))  # faint skyblue
-                pen_o.setStyle(QtCore.Qt.DashLine)
-                pen_o.setWidth(1)
-                pen_o.setCapStyle(QtCore.Qt.RoundCap)
-                painter.setPen(pen_o)
-                painter.drawLine(x1, y1, x2, y2)
+        # Only draw current timeframe lines; other timeframes are not shown
         px_lines = self._thumb_line_pixels(pair, tf, popup)
         selected = self._thumb_line_selected
         for idx, (x1, y1, x2, y2) in enumerate(px_lines):
@@ -2663,6 +2799,10 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                     bars2 = int(max(10, min(200, int(self.thumb_bars2 or self.thumb_bars))))
                     ohlc2 = self._ohlc_from_local(pair_l, bars2, tf=new_tf)
                     self._thumb_ohlc_top = ohlc2
+                    try:
+                        self._thumb_vol_top = [max(1e-9, h - l) for (o, h, l, c) in (ohlc2 or [])]
+                    except Exception:
+                        self._thumb_vol_top = None
                     if getattr(self, '_dual_popup', None):
                         self._dual_popup.set_data_and_owner(ohlc2 or [], self, tf_label=new_tf)
                         self._dual_popup.update()
@@ -2693,6 +2833,10 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                     bars = int(max(10, min(200, int(self.thumb_bars or 50))))
                     ohlc = self._ohlc_from_local(pair_l, bars, tf=new_tf)
                     self._thumb_ohlc_main = ohlc
+                    try:
+                        self._thumb_vol_main = [max(1e-9, h - l) for (o, h, l, c) in (ohlc or [])]
+                    except Exception:
+                        self._thumb_vol_main = None
                     if getattr(self, '_thumb_popup', None):
                         self._thumb_popup.set_data_and_owner(ohlc or [], self, ohlc2=None, tf_label=new_tf)
                         self._thumb_popup.update()
@@ -2715,7 +2859,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
 
     def _cycle_sub_indicator(self, kind: str, step: int) -> None:
         try:
-            opts = ['rsi','macd','kdj']
+            opts = ['rsi','macd','kdj','vol']
             if kind == 'dual':
                 cur = (self.thumb_dual_sub_indicator or 'rsi').lower()
                 try:
@@ -2901,6 +3045,10 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             pair = self._slot_to_pair(cid)
             if prev_close is not None and pair:
                 self.prev_close[pair.lower()] = float(prev_close)
+        
+            # Populate last_ws_price for fast TTS startup
+            if pair and price > 0:
+                self.last_ws_price[pair.lower()] = float(price)
 
             # 使用统一函数：优先基于昨日收盘价计算百分比
             pct_for_tip = self._percent_from_prev_close(pair, price, pct_24h)
@@ -3459,8 +3607,11 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                 return
         interval_ms = int(max(1, int(self.tts_interval_min)) * 60_000)
         self._tts_timer.start(interval_ms)
+        # Trigger immediately so user knows it's working
+        QtCore.QTimer.singleShot(100, self._speak_prices_if_ready)
 
     def _speak_prices_if_ready(self):
+        print(f"[debug] _speak_prices_if_ready called. enabled={self.tts_enabled}", flush=True)
         if not self.tts_enabled:
             return
         # Build message for current visible slots with available prices
@@ -3474,9 +3625,12 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                 continue
             p = self.last_ws_price.get(pair.lower())
             if p is None:
+                print(f"[debug] No price for {pair}", flush=True)
                 continue
             sym = pair[:-4].upper()
             parts.append(f"{sym} 当前为 {self._format_price(p)} 。")
+        
+        print(f"[debug] parts to speak: {parts}", flush=True)
         if not parts:
             return
         if platform.system() == "Windows":
@@ -3487,14 +3641,16 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                         self._speak_windows(seg)
                         if i + 1 < len(parts):
                             time.sleep(2.0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[debug] Windows speak error: {e}", flush=True)
             threading.Thread(target=_win_seq, daemon=True).start()
         else:
             # 非 Windows：edge-tts 顺序播报并间隔 2s
             try:
+                print("[debug] calling speak_edge_sequence", flush=True)
                 self.alert.speak_edge_sequence(parts, pause_s=1.0)
-            except Exception:
+            except Exception as e:
+                print(f"[debug] speak_edge_sequence error: {e}", flush=True)
                 pass
 
     def _speak_windows(self, text: str):
@@ -3669,9 +3825,9 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         # Dual sub-indicator
         row_sub2 = QtWidgets.QHBoxLayout()
         row_sub2.addWidget(QtWidgets.QLabel("Dual sub-indicator"))
-        cmb_sub2 = QtWidgets.QComboBox(); cmb_sub2.addItems(["none", "rsi", "macd", "kdj"])
+        cmb_sub2 = QtWidgets.QComboBox(); cmb_sub2.addItems(["none", "rsi", "macd", "kdj", "vol"])
         cur2 = (self.thumb_dual_sub_indicator or "none").lower()
-        idx2 = max(0, ["none","rsi","macd","kdj"].index(cur2) if cur2 in ["none","rsi","macd","kdj"] else 0)
+        idx2 = max(0, ["none","rsi","macd","kdj","vol"].index(cur2) if cur2 in ["none","rsi","macd","kdj","vol"] else 0)
         cmb_sub2.setCurrentIndex(idx2)
         row_sub2.addWidget(cmb_sub2)
         cont_sub2 = QtWidgets.QWidget(); cont_sub2.setLayout(row_sub2)
@@ -3756,9 +3912,9 @@ class CryptoWidgetQt(QtWidgets.QWidget):
         row_sub = QtWidgets.QHBoxLayout()
         row_sub.addWidget(QtWidgets.QLabel("Sub-indicator"))
         cmb_sub = QtWidgets.QComboBox()
-        cmb_sub.addItems(["none", "rsi", "macd", "kdj"])
+        cmb_sub.addItems(["none", "rsi", "macd", "kdj", "vol"])
         cur = (self.thumb_sub_indicator or "none").lower()
-        idx = max(0, ["none","rsi","macd","kdj"].index(cur) if cur in ["none","rsi","macd","kdj"] else 0)
+        idx = max(0, ["none","rsi","macd","kdj","vol"].index(cur) if cur in ["none","rsi","macd","kdj","vol"] else 0)
         cmb_sub.setCurrentIndex(idx)
         row_sub.addWidget(cmb_sub)
         cont_sub = QtWidgets.QWidget(); cont_sub.setLayout(row_sub)
@@ -3789,7 +3945,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             self.thumb_overlay_type = "none" if rb_none.isChecked() else ("ema" if rb_ema.isChecked() else "ma")
             self.thumb_overlay_p1 = int(sp_p1.value())
             self.thumb_overlay_p2 = int(sp_p2.value())
-            self.thumb_sub_indicator = ["none","rsi","macd","kdj"][int(cmb_sub.currentIndex())]
+            self.thumb_sub_indicator = ["none","rsi","macd","kdj","vol"][int(cmb_sub.currentIndex())]
             self.thumb_chart_style = styles[int(cmb_style.currentIndex())]
             self.thumb_scale_percent = int(cmb_scale.currentData())
             self.thumb_overlay_color1 = str(cb_col1.currentData())
@@ -3799,7 +3955,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
             self.thumb_dual_overlay_p2 = int(sp2_p2.value())
             self.thumb_dual_overlay_color1 = str(cb2_col1.currentData())
             self.thumb_dual_overlay_color2 = str(cb2_col2.currentData())
-            self.thumb_dual_sub_indicator = ["none","rsi","macd","kdj"][int(cmb_sub2.currentIndex())]
+            self.thumb_dual_sub_indicator = ["none","rsi","macd","kdj","vol"][int(cmb_sub2.currentIndex())]
             self.thumb_dual_scale_percent = int(cmb_dual_scale.currentData())
             self._save_config()
 
@@ -3977,6 +4133,7 @@ class CryptoWidgetQt(QtWidgets.QWidget):
                 "geometry": [int(g.x()), int(g.y()), int(g.width()), int(g.height())],
                 "collapsed": bool(self._collapsed),
                 "prefer_price_source": str(getattr(self, 'prefer_price_source', 'spot')),
+                "base_font_px": int(getattr(self, '_base_font_px', 11)),
                 "ui_scale": float(self.ui_scale),
                 "thumb_enabled": bool(self.thumb_enabled),
                 "thumb_fetch_from_binance": bool(self.thumb_fetch_from_binance),
