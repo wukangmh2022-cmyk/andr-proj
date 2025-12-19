@@ -14,58 +14,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            python3-dev \
-            ffmpeg \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            zlib1g-dev \
-            libgstreamer1.0 \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good
-          
-          pip install --upgrade pip
-          pip install buildozer cython==0.29.36 setuptools
-
-      - name: Accept Android SDK Licenses
-        run: |
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
-
-      - name: Build APK with Buildozer
+      - name: Build with Buildozer
+        uses: ArtiomLK/buildozer-action@v1
         id: buildozer
-        run: |
-          cd android
-          # Yes, we run buildozer as is. It will handle SDK/NDK download
-          buildozer android debug
-        continue-on-error: false
-
-      - name: Rename APK
-        run: |
-          cd android/bin
-          ls -R
-          mv *.apk crypto_widget.apk
+        with:
+          workdir: android
+          buildozer_version: stable
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: crypto-widget-apk
-          path: android/bin/crypto_widget.apk
+          path: ${{ steps.buildozer.outputs.filename }}
