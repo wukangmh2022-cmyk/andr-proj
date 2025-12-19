@@ -1,0 +1,63 @@
+name: Build Android APK
+on:
+  push:
+    paths:
+      - 'android/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            python3-dev \
+            ffmpeg \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            libgstreamer1.0 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good
+          
+          pip install --upgrade pip
+          pip install buildozer cython==0.29.36 setuptools
+
+      - name: Build APK with Buildozer
+        id: buildozer
+        run: |
+          cd android
+          # Yes, we run buildozer as is. It will handle SDK/NDK download
+          buildozer android debug
+        continue-on-error: false
+
+      - name: Rename APK
+        run: |
+          cd android/bin
+          ls -R
+          mv *.apk crypto_widget.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: crypto-widget-apk
+          path: android/bin/crypto_widget.apk
