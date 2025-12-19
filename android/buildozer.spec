@@ -20,7 +20,7 @@ source.include_exts = py,png,jpg,kv,atlas
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.3.0,requests,urllib3,charset-normalizer,idna,certifi
+requirements = python3,kivy==2.3.0,requests,urllib3,charset-normalizer,idna,certifi,websocket-client,plyer,pyjnius
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
