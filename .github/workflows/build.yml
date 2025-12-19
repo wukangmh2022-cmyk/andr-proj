@@ -28,13 +28,13 @@ jobs:
 
       - name: Build with Buildozer Docker
         run: |
-          # 运行 Kivy 官方提供的 Buildozer 镜像
+          # 使用 sh -c 并配合 yes 命令跳过 root 权限确认提示
           docker run --rm \
             -v "$(pwd)":/home/user/hostpython \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -e REPO_PATH=/home/user/hostpython \
             kivy/buildozer \
-            --dir android android debug
+            sh -c "yes | buildozer --dir android android debug"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
