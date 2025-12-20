@@ -40,7 +40,7 @@ jobs:
             -c "
             # 1. 创建属于当前用户的虚拟环境
             python3 -m venv /home/user/myenv &&
-            source /home/user/myenv/bin/activate &&
+            . /home/user/myenv/bin/activate &&
             
             # 2. 安装 buildozer 和必要依赖
             pip install --upgrade pip &&
