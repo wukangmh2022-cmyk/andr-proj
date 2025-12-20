@@ -16,11 +16,16 @@ jobs:
 
       - name: Build with Buildozer Docker
         run: |
-          # 使用 yes 命令强制自动回答所有 [y/n] 问题
+          # 给予工作目录全权限，防止容器内用户无法写入
+          chmod -R 777 .
+          
+          # 使用 --env 和 --user 参数，并配合 yes 命令
           docker run --rm \
             -v "$(pwd)":/home/user/hostpython \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -e REPO_PATH=/home/user/hostpython \
+            -e APP_ALLOW_ROOT=1 \
+            -e USER=user \
             kivy/buildozer \
             sh -c "cd android && yes y | buildozer android debug"
 
