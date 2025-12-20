@@ -53,6 +53,7 @@ jobs:
             # 3. 开始编译
             cd android && 
             rm -rf .buildozer &&
+            export USE_CCACHE=0 &&
             yes | buildozer android debug
             "
 
