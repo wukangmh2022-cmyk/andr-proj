@@ -16,11 +16,18 @@ jobs:
 
       - name: Build with Buildozer Docker
         run: |
+          # 1. 确保当前目录权限全开
           chmod -R 777 .
+          
+          # 2. 预先创建并放开 .buildozer 目录权限
+          # 这步很关键！否则 Docker 里的用户写不进去
+          mkdir -p $HOME/.buildozer
+          chmod -R 777 $HOME/.buildozer
+
           USER_ID=$(id -u)
           GROUP_ID=$(id -g)
           
-          # 关键点：重写 entrypoint，绕过镜像自带的有问题的启动脚本
+          # 3. 运行 Docker
           docker run --rm \
             --user $USER_ID:$GROUP_ID \
             --entrypoint /bin/sh \
