@@ -17,13 +17,15 @@ jobs:
       - name: Build with Buildozer Docker
         run: |
           chmod -R 777 .
-          mkdir -p $HOME/.buildozer
-          chmod -R 777 $HOME/.buildozer
           
-          # 创建一个新的虚拟环境，属于当前用户
-          # 这样我们就有完整的控制权，不再受限于 root 创建的那个 venv
-          mkdir -p $HOME/myenv
-          chmod -R 777 $HOME/myenv
+          # 预先创建所有需要写入的缓存目录，并放开权限
+          mkdir -p $HOME/.buildozer
+          mkdir -p $HOME/.android
+          mkdir -p $HOME/.gradle
+          
+          chmod -R 777 $HOME/.buildozer
+          chmod -R 777 $HOME/.android
+          chmod -R 777 $HOME/.gradle
 
           USER_ID=$(id -u)
           GROUP_ID=$(id -g)
@@ -33,9 +35,11 @@ jobs:
             --entrypoint /bin/sh \
             -v "$(pwd)":/home/user/hostpython \
             -v "$HOME/.buildozer":/home/user/.buildozer \
-            -v "$HOME/myenv":/home/user/myenv \
+            -v "$HOME/.android":/home/user/.android \
+            -v "$HOME/.gradle":/home/user/.gradle \
             -e REPO_PATH=/home/user/hostpython \
             -e HOME=/home/user \
+            -e GRADLE_USER_HOME=/home/user/.gradle \
             kivy/buildozer \
             -c "
             # 1. 创建属于当前用户的虚拟环境
