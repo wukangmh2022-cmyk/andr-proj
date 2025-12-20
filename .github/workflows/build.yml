@@ -21,10 +21,12 @@ jobs:
           mkdir -p $HOME/.buildozer
           mkdir -p $HOME/.android
           mkdir -p $HOME/.gradle
+          mkdir -p $HOME/.kivy
           
           chmod -R 777 $HOME/.buildozer
           chmod -R 777 $HOME/.android
           chmod -R 777 $HOME/.gradle
+          chmod -R 777 $HOME/.kivy
 
           USER_ID=$(id -u)
           GROUP_ID=$(id -g)
@@ -36,6 +38,7 @@ jobs:
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -v "$HOME/.android":/home/user/.android \
             -v "$HOME/.gradle":/home/user/.gradle \
+            -v "$HOME/.kivy":/home/user/.kivy \
             -e REPO_PATH=/home/user/hostpython \
             -e HOME=/home/user \
             -e GRADLE_USER_HOME=/home/user/.gradle \
