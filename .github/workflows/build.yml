@@ -14,28 +14,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get Date
-        id: get-date
-        run: |
-          echo "date=$(date -u +'%Y%m%d')" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: buildozer-global-${{ hashFiles('android/buildozer.spec') }}-${{ steps.get-date.outputs.date }}
-
       - name: Build with Buildozer Docker
         run: |
-          # 增加 APP_ALLOW_ROOT=1 环境变量，并尝试不同的输入方式跳过确认
+          # 使用 yes 命令强制自动回答所有 [y/n] 问题
           docker run --rm \
             -v "$(pwd)":/home/user/hostpython \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -e REPO_PATH=/home/user/hostpython \
-            -e APP_ALLOW_ROOT=1 \
             kivy/buildozer \
-            sh -c "cd android && printf 'y\n' | buildozer android debug"
+            sh -c "cd android && yes y | buildozer android debug"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
