@@ -52,7 +52,7 @@ jobs:
             
             # 3. 开始编译
             cd android && 
-            buildozer android clean &&
+            rm -rf .buildozer &&
             yes | buildozer android debug
             "
 
