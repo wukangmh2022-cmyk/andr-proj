@@ -19,6 +19,11 @@ jobs:
           chmod -R 777 .
           mkdir -p $HOME/.buildozer
           chmod -R 777 $HOME/.buildozer
+          
+          # 创建一个新的虚拟环境，属于当前用户
+          # 这样我们就有完整的控制权，不再受限于 root 创建的那个 venv
+          mkdir -p $HOME/myenv
+          chmod -R 777 $HOME/myenv
 
           USER_ID=$(id -u)
           GROUP_ID=$(id -g)
@@ -28,15 +33,20 @@ jobs:
             --entrypoint /bin/sh \
             -v "$(pwd)":/home/user/hostpython \
             -v "$HOME/.buildozer":/home/user/.buildozer \
+            -v "$HOME/myenv":/home/user/myenv \
             -e REPO_PATH=/home/user/hostpython \
             -e HOME=/home/user \
             kivy/buildozer \
             -c "
-            # 先给 pip 升级并安装必要的依赖，加上 --user 确保装在用户目录下
-            /home/user/.venv/bin/python3 -m pip install --user --upgrade pip &&
-            /home/user/.venv/bin/python3 -m pip install --user appdirs 'colorama>=0.3.3' jinja2 'sh>=1.10,<2.0' build toml packaging setuptools &&
+            # 1. 创建属于当前用户的虚拟环境
+            python3 -m venv /home/user/myenv &&
+            source /home/user/myenv/bin/activate &&
             
-            # 进入目录开始编译
+            # 2. 安装 buildozer 和必要依赖
+            pip install --upgrade pip &&
+            pip install buildozer cython==0.29.36 appdirs 'colorama>=0.3.3' jinja2 'sh>=1.10,<2.0' build toml packaging setuptools &&
+            
+            # 3. 开始编译
             cd /home/user/hostpython/android && 
             buildozer android debug
             "
