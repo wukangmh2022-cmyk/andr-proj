@@ -52,7 +52,7 @@ jobs:
             
             # 3. 开始编译
             cd android && 
-            buildozer android debug
+            yes | buildozer android debug
             "
 
       - name: Upload APK
