@@ -172,4 +172,27 @@ Builder.load_string('''
 ''')
 
 if __name__ == '__main__':
-    CryptoApp().run()
+    try:
+        CryptoApp().run()
+    except Exception:
+        # Crash Handler: Capture traceback and show it on a simple UI
+        # This allows debugging on device without ADB access
+        import traceback
+        err = traceback.format_exc()
+        
+        class CrashApp(App):
+            def build(self):
+                # Scrollable label for long tracebacks
+                from kivy.uix.scrollview import ScrollView
+                from kivy.uix.label import Label
+                
+                scroll = ScrollView()
+                label = Label(text=f"CRASH REPORT:\n\n{err}", 
+                              size_hint_y=None, 
+                              text_size=(Window.width * 0.95, None),
+                              halign='left', valign='top')
+                label.bind(texture_size=label.setter('size'))
+                scroll.add_widget(label)
+                return scroll
+                
+        CrashApp().run()
