@@ -16,22 +16,20 @@ jobs:
 
       - name: Build with Buildozer Docker
         run: |
-          # 1. 赋予所有人读写权限，避免 Docker 里的普通用户无法写入
           chmod -R 777 .
-          
-          # 2. 获取当前用户的 UID 和 GID
           USER_ID=$(id -u)
           GROUP_ID=$(id -g)
           
-          # 3. 以当前非 root 用户身份启动 Docker
-          # 这样 buildozer 就会认为自己是普通用户，完全跳过 root 检查
+          # 关键点：重写 entrypoint，绕过镜像自带的有问题的启动脚本
           docker run --rm \
             --user $USER_ID:$GROUP_ID \
+            --entrypoint /bin/sh \
             -v "$(pwd)":/home/user/hostpython \
             -v "$HOME/.buildozer":/home/user/.buildozer \
             -e REPO_PATH=/home/user/hostpython \
+            -e HOME=/home/user \
             kivy/buildozer \
-            sh -c "cd android && buildozer android debug"
+            -c "cd /home/user/hostpython/android && buildozer android debug"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
