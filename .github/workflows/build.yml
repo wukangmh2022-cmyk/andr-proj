@@ -16,18 +16,13 @@ jobs:
 
       - name: Build with Buildozer Docker
         run: |
-          # 1. 确保当前目录权限全开
           chmod -R 777 .
-          
-          # 2. 预先创建并放开 .buildozer 目录权限
-          # 这步很关键！否则 Docker 里的用户写不进去
           mkdir -p $HOME/.buildozer
           chmod -R 777 $HOME/.buildozer
 
           USER_ID=$(id -u)
           GROUP_ID=$(id -g)
           
-          # 3. 运行 Docker
           docker run --rm \
             --user $USER_ID:$GROUP_ID \
             --entrypoint /bin/sh \
@@ -36,7 +31,15 @@ jobs:
             -e REPO_PATH=/home/user/hostpython \
             -e HOME=/home/user \
             kivy/buildozer \
-            -c "cd /home/user/hostpython/android && buildozer android debug"
+            -c "
+            # 先给 pip 升级并安装必要的依赖，加上 --user 确保装在用户目录下
+            /home/user/.venv/bin/python3 -m pip install --user --upgrade pip &&
+            /home/user/.venv/bin/python3 -m pip install --user appdirs 'colorama>=0.3.3' jinja2 'sh>=1.10,<2.0' build toml packaging setuptools &&
+            
+            # 进入目录开始编译
+            cd /home/user/hostpython/android && 
+            buildozer android debug
+            "
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
