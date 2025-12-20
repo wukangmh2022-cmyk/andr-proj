@@ -18,7 +18,6 @@ jobs:
         run: |
           chmod -R 777 .
           
-          # 预先创建所有需要写入的缓存目录，并放开权限
           mkdir -p $HOME/.buildozer
           mkdir -p $HOME/.android
           mkdir -p $HOME/.gradle
@@ -42,16 +41,17 @@ jobs:
             -e GRADLE_USER_HOME=/home/user/.gradle \
             kivy/buildozer \
             -c "
-            # 1. 创建属于当前用户的虚拟环境
-            python3 -m venv /home/user/myenv &&
-            . /home/user/myenv/bin/activate &&
+            # 1. 在挂载的工作目录下创建虚拟环境（这里肯定有权限）
+            cd /home/user/hostpython &&
+            python3 -m venv myenv &&
+            . myenv/bin/activate &&
             
-            # 2. 安装 buildozer 和必要依赖
+            # 2. 安装依赖
             pip install --upgrade pip &&
             pip install buildozer cython==0.29.36 appdirs 'colorama>=0.3.3' jinja2 'sh>=1.10,<2.0' build toml packaging setuptools &&
             
             # 3. 开始编译
-            cd /home/user/hostpython/android && 
+            cd android && 
             buildozer android debug
             "
 
